@@ -5,7 +5,7 @@ An interactive 3D Rubik's Cube playground using React, Three.js, React Three Fib
 ## Features
 
 - 2×2 to 6×6 cubes with logically correct face and inner-layer turns
-- Mouse/touch orbit and zoom, clickable stickers, face controls, reverse and half turns
+- Separate Rotate view and Solve modes: orbit and zoom without accidental turns, or lock the camera to click stickers; face controls, reverse and half turns
 - Scrambling, timed solve sessions, move counting, undo, reset, solved-state detection
 - Automated move-history reversal to recover a solved state
 - Filled or wireframe display, four color palettes (Classic Rubik's, Pastel, Neon, Mono)
@@ -22,7 +22,7 @@ Open the local URL reported by Vite. Verify changes using `npm test` and `npm ru
 
 ## Playing
 
-Choose a size, press **Scramble cube**, then solve using U/D/L/R/F/B face controls or by clicking stickers. Drag to rotate the camera and scroll to zoom. Shift-click a sticker for a counter-clockwise turn, Alt-click for a half turn. Change **Layer depth** to turn an inner slice. The clock starts on the first user move and stops when the cube becomes solved; move count excludes scrambling and auto-solve.
+Choose a size, press **Scramble cube**, then select **Rotate view** to drag/orbit the camera and scroll to zoom, or **Solve** to lock the camera and click stickers to turn faces. U/D/L/R/F/B face buttons work in either mode. Shift-click a sticker for a counter-clockwise turn, Alt-click for a half turn. Change **Layer depth** to turn an inner slice. The clock starts on the first user move and stops when the cube becomes solved; move count excludes scrambling and auto-solve.
 
 **Auto-solve design:** This version reverses the recorded move history, so it correctly restores any state reached through this simulator (including scrambles and inner-layer turns). It is **not** a general solver for independently entered cube states. That would require an additional solving algorithm, especially for 4×4–6×6.
 
