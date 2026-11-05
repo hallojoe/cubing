@@ -13,14 +13,15 @@ const SCHEMES = {
 };
 type Scheme=keyof typeof SCHEMES;
 type Style='filled'|'wireframe';
+type InteractionMode='view'|'solve';
 const normals:Record<Face,[number,number,number]>={U:[0,1,0],D:[0,-1,0],L:[-1,0,0],R:[1,0,0],F:[0,0,1],B:[0,0,-1]};
 const orientations:Record<Face,[number,number,number]>={U:[-Math.PI/2,0,0],D:[Math.PI/2,0,0],L:[0,-Math.PI/2,0],R:[0,Math.PI/2,0],F:[0,0,0],B:[0,Math.PI,0]};
 const formatTime=(ms:number)=>{const t=Math.floor(ms/1000);return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}.${String(Math.floor((ms%1000)/10)).padStart(2,'0')}`;};
 
-function Piece({piece,size,scheme,style,onTurn}:{piece:Cubie;size:number;scheme:Scheme;style:Style;onTurn:(face:Face,shift:boolean,alt:boolean)=>void}){
+function Piece({piece,size,scheme,style,mode,onTurn}:{piece:Cubie;size:number;scheme:Scheme;style:Style;mode:InteractionMode;onTurn:(face:Face,shift:boolean,alt:boolean)=>void}){
  const step=3.15/size;
  const position=piece.pos.map(c=>(c-(size-1)/2)*step) as [number,number,number];
- const handle=(face:Face,e:ThreeEvent<PointerEvent>)=>{e.stopPropagation();onTurn(face,e.nativeEvent.shiftKey,e.nativeEvent.altKey);};
+ const handle=(face:Face,e:ThreeEvent<PointerEvent>)=>{if(mode!=='solve')return;e.stopPropagation();onTurn(face,e.nativeEvent.shiftKey,e.nativeEvent.altKey);};
  return <group position={position}>
   {style==='filled'?<RoundedBox args={[step*.965,step*.965,step*.965]} radius={Math.min(.065,step*.11)} smoothness={3}><meshStandardMaterial color="#111923" roughness={.53}/></RoundedBox>:<mesh><boxGeometry args={[step*.97,step*.97,step*.97]}/><meshBasicMaterial color="#506174" transparent opacity={.06} depthWrite={false}/></mesh>}
   {FACES.map(face=>{const sticker=piece.stickers[face];if(!sticker)return null;
@@ -32,18 +33,19 @@ function Piece({piece,size,scheme,style,onTurn}:{piece:Cubie;size:number;scheme:
   })}
  </group>;
 }
-function CubeScene({cubies,size,scheme,style,onTurn}:{cubies:Cubie[];size:number;scheme:Scheme;style:Style;onTurn:(face:Face,shift:boolean,alt:boolean)=>void}){
+function CubeScene({cubies,size,scheme,style,mode,onTurn}:{cubies:Cubie[];size:number;scheme:Scheme;style:Style;mode:InteractionMode;onTurn:(face:Face,shift:boolean,alt:boolean)=>void}){
  return <Canvas dpr={[1,2]} camera={{position:[5.6,4.5,6.8],fov:38}} gl={{antialias:true}}>
   <color attach="background" args={['#101923']}/>
   <ambientLight intensity={2}/><directionalLight position={[4,8,6]} intensity={2.3}/><directionalLight position={[-5,-3,-6]} intensity={1} color="#9ebbe9"/>
-  <group rotation={[0,-.15,0]}>{cubies.map(piece=><Piece key={piece.id} piece={piece} size={size} scheme={scheme} style={style} onTurn={onTurn}/>)}</group>
-  <OrbitControls enablePan={false} minDistance={5} maxDistance={13} enableDamping dampingFactor={.08}/>
+  <group rotation={[0,-.15,0]}>{cubies.map(piece=><Piece key={piece.id} piece={piece} size={size} scheme={scheme} style={style} mode={mode} onTurn={onTurn}/>)}</group>
+  <OrbitControls enabled={mode==='view'} enablePan={false} minDistance={5} maxDistance={13} enableDamping dampingFactor={.08}/>
  </Canvas>;
 }
 export default function App(){
  const [size,setSize]=useState(3);
  const [cubies,setCubies]=useState(()=>initialCube(3));
  const [style,setStyle]=useState<Style>('filled');
+ const [mode,setMode]=useState<InteractionMode>('view');
  const [scheme,setScheme]=useState<Scheme>('Classic');
  const [layer,setLayer]=useState(0);
  const [history,setHistory]=useState<Move[]>([]);
@@ -105,7 +107,10 @@ export default function App(){
   <main className="workspace">
    <section className="viewer-column">
     <div className="viewer-heading"><div className="eyebrow"><span className="eyebrow-line"/> THE PUZZLE</div><h1>Think outside<br/><em>the cube.</em></h1><p>A little twist. A lot of possibilities.</p></div>
-    <div className="cube-stage"><div className="scene-glow"/><div className="stage-tag"><span className="live-dot"/> INTERACTIVE 3D</div><div className="stage-cube"><CubeScene cubies={cubies} size={size} style={style} scheme={scheme} onTurn={handleTurn}/></div><div className="stage-bottom"><span><Grip size={16}/> DRAG TO ROTATE VIEW</span><span>SCROLL TO ZOOM +</span></div></div>
+    <div className="cube-stage"><div className="scene-glow"/><div className="stage-tag"><span className="live-dot"/> INTERACTIVE 3D</div>
+     <div className="mode-switch" role="group" aria-label="Cube interaction mode"><button type="button" className={mode==='view'?'active':''} aria-pressed={mode==='view'} onClick={()=>setMode('view')}><RotateCcw size={15}/> Rotate view</button><button type="button" className={mode==='solve'?'active':''} aria-pressed={mode==='solve'} onClick={()=>setMode('solve')}><Grip size={15}/> Solve</button></div>
+     <div className={`stage-cube mode-${mode}`}><CubeScene cubies={cubies} size={size} style={style} scheme={scheme} mode={mode} onTurn={handleTurn}/></div>
+     <div className="stage-bottom"><span><Grip size={16}/>{mode==='view'?'DRAG TO ROTATE VIEW':'CLICK STICKERS TO TURN FACES'}</span><span>{mode==='view'?'SCROLL TO ZOOM +':'CAMERA LOCKED · SWITCH TO ROTATE VIEW'}</span></div></div>
     <div className="status-bar"><div className="status-icon">{solved?<Check size={18}/>:<Sparkles size={18}/>}</div><div><strong>{solved?'All sides aligned':'Puzzle in progress'}</strong><span>{notice}</span></div><span className="status-pill">{solved?'SOLVED':'UNSOLVED'}</span></div>
    </section>
    <aside className="sidebar">
@@ -123,7 +128,7 @@ export default function App(){
      <div className="move-top"><span>Turn a face</span><button className="undo-button" disabled={busy||history.length===0} onClick={undo}><Undo2 size={15}/> Undo</button></div>
      <div className="face-grid">{FACES.map(face=><div key={face} className="face-control"><button disabled={busy} title={`Turn ${face} clockwise`} onClick={()=>handleTurn(face,false,false)}>{face}</button><button disabled={busy} className="face-inverse" title={`Reverse ${face}`} onClick={()=>handleTurn(face,true,false)}>′</button></div>)}</div>
      <div className="layer-control"><label htmlFor="layer">Layer depth <span>{layer===0?'Outer face':`Layer ${layer+1}`}</span></label><input id="layer" type="range" min={0} max={size-1} value={layer} onChange={e=>setLayer(Number(e.target.value))} disabled={busy}/></div>
-     <p className="subnote">Click a sticker to turn that face. Shift reverses; Alt gives 180°.</p>
+     <p className="subnote">Face buttons work in either mode. Switch to Solve to click stickers. Shift reverses; Alt gives 180°.</p>
     </div>
     <div className="panel"><div className="panel-title"><span className="section-number">04</span><h3>Make it yours</h3><Palette size={17}/></div>
      <div className="appearance-label">APPEARANCE</div><div className="style-options"><button className={style==='filled'?'selected':''} onClick={()=>setStyle('filled')}><Square size={17} fill="currentColor"/> Filled</button><button className={style==='wireframe'?'selected':''} onClick={()=>setStyle('wireframe')}><Grip size={18}/> Wireframe</button></div>
@@ -132,6 +137,6 @@ export default function App(){
     <footer className="side-footer">BUILT FOR CURIOUS MINDS <span>✳</span> KEEP TWISTING</footer>
    </aside>
   </main>
-  {showHelp&&<div className="modal-backdrop" onClick={()=>setShowHelp(false)}><div className="help-modal" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setShowHelp(false)}>×</button><div className="eyebrow">THE QUICK GUIDE</div><h2>Let's get twisting.</h2><p>Choose a cube size, scramble it, then solve using the face buttons or by clicking a colored sticker. The clock starts on your first solving move.</p><p>Drag to orbit and scroll to zoom. U (top), D (bottom), L (left), R (right), F (front), B (back). Prime (′) turns counter-clockwise; use layer depth for inner slices.</p><p>Shift-click a sticker to reverse and Alt-click for a half turn. Auto-solve reverses the session history and is not an arbitrary-state solver.</p>{lastScramble&&<div className="scramble-readout"><strong>Last scramble</strong><div>{lastScramble}</div></div>}<button className="primary-button" onClick={()=>setShowHelp(false)}>Got it <ArrowRight size={16}/></button></div></div>}
+  {showHelp&&<div className="modal-backdrop" onClick={()=>setShowHelp(false)}><div className="help-modal" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setShowHelp(false)}>×</button><div className="eyebrow">THE QUICK GUIDE</div><h2>Let's get twisting.</h2><p>Choose a cube size, scramble it, then solve using the face buttons or by clicking a colored sticker. The clock starts on your first solving move.</p><p>Use Rotate view mode to drag/orbit and scroll to zoom without changing the puzzle. Switch to Solve mode to click a sticker and turn its face; the camera is locked in this mode. Face buttons remain available in both modes. U (top), D (bottom), L (left), R (right), F (front), B (back). Prime (′) turns counter-clockwise; use layer depth for inner slices.</p><p>Shift-click a sticker to reverse and Alt-click for a half turn. Auto-solve reverses the session history and is not an arbitrary-state solver.</p>{lastScramble&&<div className="scramble-readout"><strong>Last scramble</strong><div>{lastScramble}</div></div>}<button className="primary-button" onClick={()=>setShowHelp(false)}>Got it <ArrowRight size={16}/></button></div></div>}
  </div>;
 }
