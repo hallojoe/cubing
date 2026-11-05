@@ -24,3 +24,13 @@
 @media(max-width:1100px){.workspace{grid-template-columns:minmax(0,1fr) 375px}.viewer-column{padding:45px 5%}.sidebar{padding:35px 17px}.viewer-heading h1{font-size:49px}}
 @media(max-width:800px){.topbar{padding:0 20px;height:68px}.top-center{display:none}.workspace{grid-template-columns:1fr}.viewer-column{padding:35px 20px 25px}.viewer-heading h1{font-size:46px}.cube-stage{height:480px}.sidebar{border-left:0;border-top:1px solid #2c3845;padding:32px 20px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.sidebar-intro{grid-column:1/-1}.panel{margin-top:0}.side-footer{grid-column:1/-1}}
 @media(max-width:520px){.brand{font-size:18px}.help-button{font-size:0;gap:0}.help-button svg{width:19px;height:19px}.viewer-heading h1{font-size:42px}.cube-stage{height:400px}.stage-bottom{font-size:8px;left:14px;right:14px}.stage-tag{left:14px}.sidebar{grid-template-columns:1fr}.sidebar-intro{grid-column:auto}.side-footer{grid-column:auto}}
+
+/* Mutually exclusive camera orbit and puzzle interaction */
+.mode-switch{position:absolute;right:17px;top:16px;z-index:3;display:flex;gap:4px;padding:4px;border:1px solid #40505e;border-radius:9px;background:#101b27e8;backdrop-filter:blur(8px)}
+.mode-switch button{border:0;background:transparent;color:#99aabb;font-size:11px;font-weight:800;padding:9px 11px;border-radius:6px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.mode-switch button.active{background:#c9ef82;color:#16201b}
+.mode-switch button:focus-visible{outline:2px solid #e3f9bc;outline-offset:2px}
+.stage-cube.mode-view canvas{cursor:grab}
+.stage-cube.mode-view canvas:active{cursor:grabbing}
+.stage-cube.mode-solve canvas{cursor:crosshair}
+@media(max-width:520px){.mode-switch{top:51px;left:14px;right:auto}.mode-switch button{font-size:10px;padding:8px}.stage-tag{top:21px}}
