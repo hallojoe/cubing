@@ -21,6 +21,7 @@ const normals:Record<Face,[number,number,number]>={U:[0,1,0],D:[0,-1,0],L:[-1,0,
 const orientations:Record<Face,[number,number,number]>={U:[-Math.PI/2,0,0],D:[Math.PI/2,0,0],L:[0,-Math.PI/2,0],R:[0,Math.PI/2,0],F:[0,0,0],B:[0,Math.PI,0]};
 const SHARED_BOX=new THREE.BoxGeometry(1,1,1);
 const SHARED_BODY=new THREE.MeshStandardMaterial({color:'#111923',roughness:.53});
+const SHARED_WIREFRAME_BODY=new THREE.MeshBasicMaterial({color:'#506174',transparent:true,opacity:.06,depthWrite:false});
 const SHARED_STICKER=new THREE.PlaneGeometry(1,1);
 const SHARED_STICKER_EDGES=new THREE.EdgesGeometry(SHARED_STICKER);
 const STICKER_MATERIALS=Object.fromEntries(Object.entries(SCHEMES).map(([name,colors])=>[name,Object.fromEntries(Object.entries(colors).map(([face,color])=>[face,{filled:new THREE.MeshStandardMaterial({color,roughness:.36,side:THREE.DoubleSide}),wireframe:new THREE.MeshStandardMaterial({color,roughness:.36,side:THREE.DoubleSide,transparent:true,opacity:.25})}]))])) as Record<Scheme,Record<Face,Record<Style,THREE.MeshStandardMaterial>>>;
@@ -54,7 +55,7 @@ function Piece({piece,size,scheme,style,mode,onDragTurn,disabled}:{piece:Cubie;s
  const step=3.15/size;
  const position=piece.pos.map(c=>(c-(size-1)/2)*step) as [number,number,number];
  return <group position={position}>
-  {style==='filled'?(size<=6?<RoundedBox args={[step*.965,step*.965,step*.965]} radius={Math.min(.065,step*.11)} smoothness={3}><meshStandardMaterial color="#111923" roughness={.53}/></RoundedBox>:<mesh geometry={SHARED_BOX} material={SHARED_BODY} scale={[step*.965,step*.965,step*.965]}/>):<mesh><boxGeometry args={[step*.97,step*.97,step*.97]}/><meshBasicMaterial color="#506174" transparent opacity={.06} depthWrite={false}/></mesh>}
+  {style==='filled'?(size<=6?<RoundedBox args={[step*.965,step*.965,step*.965]} radius={Math.min(.065,step*.11)} smoothness={3}><meshStandardMaterial color="#111923" roughness={.53}/></RoundedBox>:<mesh geometry={SHARED_BOX} material={SHARED_BODY} scale={[step*.965,step*.965,step*.965]}/>):<mesh geometry={SHARED_BOX} material={SHARED_WIREFRAME_BODY} scale={[step*.97,step*.97,step*.97]}/>}
   {FACES.map(face=>{const sticker=piece.stickers[face];if(!sticker)return null;
    const offset=normals[face].map(v=>v*step*.491) as [number,number,number];
    return <group key={face} position={offset} rotation={orientations[face]}>
