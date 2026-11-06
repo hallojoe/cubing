@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { dragToMove } from './drag';
 import { keyboardMoves } from './keyboard';
 import { takeNextManualSequence } from './manualQueue';
-import { ArrowRight, Check, CircleHelp, Clock3, Grip, Layers3, Palette, RotateCcw, Shuffle, Sparkles, Square, TimerReset, Undo2, Zap } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, CircleHelp, Clock3, Grip, Layers3, Palette, RotateCcw, Shuffle, Sparkles, Square, TimerReset, Undo2, Zap } from 'lucide-react';
 import { applyMove, FACE_AXES, FACES, initialCube, invertMove, isSolved, moveLabel, scrambleMoves, type Cubie, type Face, type Move } from './cube';
 
 const SCHEMES = {
@@ -223,7 +223,7 @@ export default function App(){
  };
  const handleTurn=(face:Face,shift:boolean,alt:boolean)=>turn({face,layer:Math.min(layer,size-1),turns:alt?2:shift?-1:1});
  return <div className="app">
-  <header className="topbar"><div className="brand"><div className="brand-mark"><span/><span/><span/><span/></div><span>CUBING<span className="brand-dot">.</span></span></div><div className="top-center"><span className="live-dot"/> THE CUBE LAB <span className="edition">/ INTERACTIVE PLAYGROUND</span></div><button className="help-button" onClick={()=>setShowHelp(true)}><CircleHelp size={16}/> How to play</button></header>
+  <header className="topbar"><div className="brand"><div className="brand-mark"><span/><span/><span/><span/></div><span>CUBING<span className="brand-dot">.</span></span></div><div className="top-center"><span className="live-dot"/> THE CUBE LAB <span className="edition">/ INTERACTIVE PLAYGROUND</span></div><div className="top-actions"><a className="learning-launch-link" href="#/learn"><BookOpen size={16}/> Learning lab</a><button className="help-button" onClick={()=>setShowHelp(true)}><CircleHelp size={16}/> How to play</button></div></header>
   <main className="workspace">
    <section className="viewer-column">
     <div className="viewer-heading"><div className="eyebrow"><span className="eyebrow-line"/> THE PUZZLE</div><h1>Think outside<br/><em>the cube.</em></h1><p>A little twist. A lot of possibilities.</p></div>
