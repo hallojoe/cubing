@@ -34,14 +34,15 @@ function Piece({piece,size,scheme,style,mode,onDragTurn,disabled}:{piece:Cubie;s
   if(mode!=='solve'||disabled||e.nativeEvent.button!==0)return;
   e.stopPropagation();
   gesture.current={pointerId:e.pointerId,x:e.nativeEvent.clientX,y:e.nativeEvent.clientY,face};
-  e.target.setPointerCapture(e.pointerId);
+  (e.target as HTMLElement | null)?.setPointerCapture(e.pointerId);
  };
  const pointerUp=(e:ThreeEvent<PointerEvent>)=>{
   const start=gesture.current;
   if(!start||start.pointerId!==e.pointerId)return;
   e.stopPropagation();
   gesture.current=null;
-  if(e.target.hasPointerCapture(e.pointerId))e.target.releasePointerCapture(e.pointerId);
+  const target=e.target as HTMLElement | null;
+  if(target?.hasPointerCapture(e.pointerId))target.releasePointerCapture(e.pointerId);
   if(mode!=='solve'||disabled)return;
   const move=dragToMove(start.face,piece,size,e.nativeEvent.clientX-start.x,e.nativeEvent.clientY-start.y,camera.quaternion);
   if(move)onDragTurn(move);
@@ -49,7 +50,8 @@ function Piece({piece,size,scheme,style,mode,onDragTurn,disabled}:{piece:Cubie;s
  const pointerCancel=(e:ThreeEvent<PointerEvent>)=>{
   if(gesture.current?.pointerId!==e.pointerId)return;
   gesture.current=null;
-  if(e.target.hasPointerCapture(e.pointerId))e.target.releasePointerCapture(e.pointerId);
+  const target=e.target as HTMLElement | null;
+  if(target?.hasPointerCapture(e.pointerId))target.releasePointerCapture(e.pointerId);
  };
 
  const step=3.15/size;
