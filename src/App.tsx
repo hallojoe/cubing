@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Canvas, ThreeEvent, useFrame } from '@react-three/fiber';
 import { OrbitControls, RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
@@ -34,7 +34,7 @@ function Piece({piece,size,scheme,style,mode,onTurn}:{piece:Cubie;size:number;sc
   })}
  </group>;
 }
-function TurningLayer({move,onComplete,children}:{move:Move;onComplete:()=>void;children:React.ReactNode}){
+function TurningLayer({move,onComplete,children}:{move:Move;onComplete:()=>void;children:ReactNode}){
  const pivot=useRef<THREE.Group>(null);
  const progress=useRef(0);
  const finished=useRef(false);
@@ -132,9 +132,7 @@ export default function App(){
  };
  const turn=(move:Move)=>{
   if(busyRef.current)return;
-  if(!running&&startedAt===null&&!isSolved(cubeRef.current,size)){
-   setRunning(true);setStartedAt(performance.now());
-  }else if(!running&&startedAt===null){
+  if(!running&&startedAt===null){
    setRunning(true);setStartedAt(performance.now());
   }
   startAnimation(move,'manual');
