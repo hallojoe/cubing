@@ -21,6 +21,9 @@ const normals:Record<Face,[number,number,number]>={U:[0,1,0],D:[0,-1,0],L:[-1,0,
 const orientations:Record<Face,[number,number,number]>={U:[-Math.PI/2,0,0],D:[Math.PI/2,0,0],L:[0,-Math.PI/2,0],R:[0,Math.PI/2,0],F:[0,0,0],B:[0,Math.PI,0]};
 const SHARED_BOX=new THREE.BoxGeometry(1,1,1);
 const SHARED_BODY=new THREE.MeshStandardMaterial({color:'#111923',roughness:.53});
+const SHARED_STICKER=new THREE.PlaneGeometry(1,1);
+const SHARED_STICKER_EDGES=new THREE.EdgesGeometry(SHARED_STICKER);
+const STICKER_MATERIALS=Object.fromEntries(Object.entries(SCHEMES).map(([name,colors])=>[name,Object.fromEntries(Object.entries(colors).map(([face,color])=>[face,{filled:new THREE.MeshStandardMaterial({color,roughness:.36,side:THREE.DoubleSide}),wireframe:new THREE.MeshStandardMaterial({color,roughness:.36,side:THREE.DoubleSide,transparent:true,opacity:.25})}]))])) as Record<Scheme,Record<Face,Record<Style,THREE.MeshStandardMaterial>>>;
 const formatTime=(ms:number)=>{const t=Math.floor(ms/1000);return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}.${String(Math.floor((ms%1000)/10)).padStart(2,'0')}`;};
 
 function Piece({piece,size,scheme,style,mode,onDragTurn,disabled}:{piece:Cubie;size:number;scheme:Scheme;style:Style;mode:InteractionMode;onDragTurn:(move:Move)=>void;disabled:boolean}){
@@ -55,8 +58,8 @@ function Piece({piece,size,scheme,style,mode,onDragTurn,disabled}:{piece:Cubie;s
   {FACES.map(face=>{const sticker=piece.stickers[face];if(!sticker)return null;
    const offset=normals[face].map(v=>v*step*.491) as [number,number,number];
    return <group key={face} position={offset} rotation={orientations[face]}>
-    <mesh onPointerDown={e=>pointerDown(face,e)} onPointerUp={pointerUp} onPointerCancel={pointerCancel}><planeGeometry args={[step*.83,step*.83]}/><meshStandardMaterial color={SCHEMES[scheme][sticker]} roughness={.36} side={THREE.DoubleSide} transparent={style==='wireframe'} opacity={style==='wireframe'?.25:1}/></mesh>
-    {style==='wireframe'&&<lineSegments position={[0,0,.006]}><edgesGeometry args={[new THREE.PlaneGeometry(step*.88,step*.88)]}/><lineBasicMaterial color={SCHEMES[scheme][sticker]}/></lineSegments>}
+    <mesh geometry={SHARED_STICKER} material={STICKER_MATERIALS[scheme][sticker][style]} scale={[step*.83,step*.83,1]} onPointerDown={e=>pointerDown(face,e)} onPointerUp={pointerUp} onPointerCancel={pointerCancel}/>
+    {style==='wireframe'&&<lineSegments position={[0,0,.006]} geometry={SHARED_STICKER_EDGES} scale={[step*.88,step*.88,1]}><lineBasicMaterial color={SCHEMES[scheme][sticker]}/></lineSegments>}
    </group>;
   })}
  </group>;
@@ -144,8 +147,7 @@ export default function App(){
     setRunning(false);
     setStartedAt(t=>{if(t!==null)setElapsed(performance.now()-t);return null;});
     setNotice('Solved! Beautiful work.');
-   }else if(kind==='manual'){
-    setNotice('Keep going — you’ve got this.');
+
    }
   }
   if(kind==='manual'&&manualRemainderRef.current.length>0){
@@ -199,7 +201,7 @@ export default function App(){
    }
    if(event.repeat||event.altKey||event.ctrlKey||event.metaKey||mode!=='solve'||showHelp)return;
    const target=event.target as HTMLElement|null;
-   if(target?.isContentEditable||target?.matches('input,textarea,select,button'))return;
+   if(target?.isContentEditable||target?.matches('input,textarea,select'))return;
    const sequence=keyboardMoves(event.code,size);
    if(!sequence)return;
    event.preventDefault();turnSequence(sequence);
