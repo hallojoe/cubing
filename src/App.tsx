@@ -4,6 +4,7 @@ import { OrbitControls, RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { dragToMove } from './drag';
 import { keyboardMoves } from './keyboard';
+import { takeNextManualSequence } from './manualQueue';
 import { ArrowRight, Check, CircleHelp, Clock3, Grip, Layers3, Palette, RotateCcw, Shuffle, Sparkles, Square, TimerReset, Undo2, Zap } from 'lucide-react';
 import { applyMove, FACE_AXES, FACES, initialCube, invertMove, isSolved, moveLabel, scrambleMoves, type Cubie, type Face, type Move } from './cube';
 
@@ -149,9 +150,11 @@ export default function App(){
    setMoves(n=>n+1);
    if(done){setRunning(false);setStartedAt(t=>{if(t!==null)setElapsed(performance.now()-t);return null;});setNotice('Solved! Beautiful work.');}
    else setNotice('Keep going — you’ve got this.');
-   if(manualQueueRef.current.length>0){
-    const sequence=manualQueueRef.current.shift()!;
-    const following={move:sequence[0],moves:sequence,kind:'manual' as const,id:++animationIdRef.current};
+   // A completed solve ends this timed session: discard any keys buffered
+   // while the solving turn was animating rather than moving the solved cube.
+   const queued=takeNextManualSequence(manualQueueRef.current,done);
+   if(queued){
+    const following={move:queued[0],moves:queued,kind:'manual' as const,id:++animationIdRef.current};
     activeRef.current=following;setAnimation(following);
     return;
    }
