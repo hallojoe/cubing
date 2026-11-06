@@ -3,6 +3,7 @@ import { Canvas, ThreeEvent, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { dragToMove } from './drag';
+import { keyboardMoves } from './keyboard';
 import { ArrowRight, Check, CircleHelp, Clock3, Grip, Layers3, Palette, RotateCcw, Shuffle, Sparkles, Square, TimerReset, Undo2, Zap } from 'lucide-react';
 import { applyMove, FACE_AXES, FACES, initialCube, invertMove, isSolved, moveLabel, scrambleMoves, type Cubie, type Face, type Move } from './cube';
 
@@ -18,6 +19,8 @@ type InteractionMode='view'|'solve';
 type AnimatedMove={move:Move;kind:'manual'|'undo'|'auto';id:number};
 const normals:Record<Face,[number,number,number]>={U:[0,1,0],D:[0,-1,0],L:[-1,0,0],R:[1,0,0],F:[0,0,1],B:[0,0,-1]};
 const orientations:Record<Face,[number,number,number]>={U:[-Math.PI/2,0,0],D:[Math.PI/2,0,0],L:[0,-Math.PI/2,0],R:[0,Math.PI/2,0],F:[0,0,0],B:[0,Math.PI,0]};
+const SHARED_BOX=new THREE.BoxGeometry(1,1,1);
+const SHARED_BODY=new THREE.MeshStandardMaterial({color:'#111923',roughness:.53});
 const formatTime=(ms:number)=>{const t=Math.floor(ms/1000);return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}.${String(Math.floor((ms%1000)/10)).padStart(2,'0')}`;};
 
 function Piece({piece,size,scheme,style,mode,onDragTurn,disabled}:{piece:Cubie;size:number;scheme:Scheme;style:Style;mode:InteractionMode;onDragTurn:(move:Move)=>void;disabled:boolean}){
@@ -48,7 +51,7 @@ function Piece({piece,size,scheme,style,mode,onDragTurn,disabled}:{piece:Cubie;s
  const step=3.15/size;
  const position=piece.pos.map(c=>(c-(size-1)/2)*step) as [number,number,number];
  return <group position={position}>
-  {style==='filled'?<RoundedBox args={[step*.965,step*.965,step*.965]} radius={Math.min(.065,step*.11)} smoothness={3}><meshStandardMaterial color="#111923" roughness={.53}/></RoundedBox>:<mesh><boxGeometry args={[step*.97,step*.97,step*.97]}/><meshBasicMaterial color="#506174" transparent opacity={.06} depthWrite={false}/></mesh>}
+  {style==='filled'?(size<=6?<RoundedBox args={[step*.965,step*.965,step*.965]} radius={Math.min(.065,step*.11)} smoothness={3}><meshStandardMaterial color="#111923" roughness={.53}/></RoundedBox>:<mesh geometry={SHARED_BOX} material={SHARED_BODY} scale={[step*.965,step*.965,step*.965]}/>):<mesh><boxGeometry args={[step*.97,step*.97,step*.97]}/><meshBasicMaterial color="#506174" transparent opacity={.06} depthWrite={false}/></mesh>}
   {FACES.map(face=>{const sticker=piece.stickers[face];if(!sticker)return null;
    const offset=normals[face].map(v=>v*step*.491) as [number,number,number];
    return <group key={face} position={offset} rotation={orientations[face]}>
@@ -109,6 +112,7 @@ export default function App(){
  const [lastScramble,setLastScramble]=useState('');
  const cubeRef=useRef(cubies),historyRef=useRef(history),busyRef=useRef(false);
  const activeRef=useRef<AnimatedMove|null>(null),autoQueueRef=useRef<Move[]>([]),animationIdRef=useRef(0);
+ const manualRemainderRef=useRef<Move[]>([]),manualQueueRef=useRef<Move[][]>([]);
  const solved=useMemo(()=>isSolved(cubies,size),[cubies,size]);
  useEffect(()=>{cubeRef.current=cubies;},[cubies]);
  useEffect(()=>{historyRef.current=history;},[history]);
@@ -116,7 +120,7 @@ export default function App(){
 
  const reset=(n=size)=>{
   if(busyRef.current)return;
-  autoQueueRef.current=[];activeRef.current=null;setAnimation(null);
+  autoQueueRef.current=[];manualRemainderRef.current=[];manualQueueRef.current=[];activeRef.current=null;setAnimation(null);
   const next=initialCube(n);cubeRef.current=next;historyRef.current=[];setCubies(next);setHistory([]);
   setMoves(0);setStartedAt(null);setRunning(false);setElapsed(0);setLastScramble('');setNotice('Cube reset. Ready to solve.');
  };
@@ -134,7 +138,7 @@ export default function App(){
   const log=kind==='manual'?[...historyRef.current,move]:historyRef.current.slice(0,-1);
   historyRef.current=log;setHistory(log);
   const done=isSolved(next,size);
-  if(kind!=='auto'){
+  if(kind==='undo'){
    setMoves(n=>n+1);
    if(done){
     setRunning(false);
@@ -142,6 +146,27 @@ export default function App(){
     setNotice('Solved! Beautiful work.');
    }else if(kind==='manual'){
     setNotice('Keep going — you’ve got this.');
+   }
+  }
+  if(kind==='manual'&&manualRemainderRef.current.length>0){
+   const nextMove=manualRemainderRef.current.shift()!;
+   const following={move:nextMove,kind:'manual' as const,id:++animationIdRef.current};
+   activeRef.current=following;setAnimation(following);
+   return;
+  }
+  if(kind==='manual'){
+   setMoves(n=>n+1);
+   if(done){
+    setRunning(false);
+    setStartedAt(t=>{if(t!==null)setElapsed(performance.now()-t);return null;});
+    setNotice('Solved! Beautiful work.');
+   }else setNotice('Keep going — you’ve got this.');
+   if(manualQueueRef.current.length>0){
+    const sequence=manualQueueRef.current.shift()!;
+    manualRemainderRef.current=sequence.slice(1);
+    const following={move:sequence[0],kind:'manual' as const,id:++animationIdRef.current};
+    activeRef.current=following;setAnimation(following);
+    return;
    }
   }
   if(kind==='auto'&&autoQueueRef.current.length>0){
@@ -154,13 +179,34 @@ export default function App(){
    if(kind==='auto')setNotice('Auto-solve complete!');
   }
  };
- const turn=(move:Move)=>{
-  if(busyRef.current)return;
-  if(!running&&startedAt===null){
-   setRunning(true);setStartedAt(performance.now());
+ const turnSequence=(sequence:Move[])=>{
+  if(sequence.length===0||activeRef.current?.kind==='auto'||activeRef.current?.kind==='undo')return;
+  if(busyRef.current){
+   if(manualQueueRef.current.length<48)manualQueueRef.current.push(sequence);
+   return;
   }
-  startAnimation(move,'manual');
+  if(!running&&startedAt===null){setRunning(true);setStartedAt(performance.now());}
+  manualRemainderRef.current=sequence.slice(1);
+  startAnimation(sequence[0],'manual');
  };
+ const turn=(move:Move)=>turnSequence([move]);
+ useEffect(()=>{
+  const onKeyDown=(event:KeyboardEvent)=>{
+   if(event.code==='Space'&&event.ctrlKey&&!event.altKey&&!event.metaKey){
+    event.preventDefault();
+    if(!event.repeat)setMode(current=>current==='view'?'solve':'view');
+    return;
+   }
+   if(event.repeat||event.altKey||event.ctrlKey||event.metaKey||mode!=='solve'||showHelp)return;
+   const target=event.target as HTMLElement|null;
+   if(target?.isContentEditable||target?.matches('input,textarea,select,button'))return;
+   const sequence=keyboardMoves(event.code,size);
+   if(!sequence)return;
+   event.preventDefault();turnSequence(sequence);
+  };
+  window.addEventListener('keydown',onKeyDown);
+  return()=>window.removeEventListener('keydown',onKeyDown);
+ },[mode,size,showHelp,running,startedAt]);
  const scramble=()=>{
   if(busyRef.current)return;
   const sequence=scrambleMoves(size);let next=initialCube(size);for(const move of sequence)next=applyMove(next,size,move);
@@ -195,7 +241,7 @@ export default function App(){
    <aside className="sidebar">
     <div className="sidebar-intro"><div className="eyebrow"><span className="eyebrow-line"/> YOUR WORKSPACE</div><h2>Cube controls<span>.</span></h2><p>Every great solve starts with a single turn.</p></div>
     <div className="panel"><div className="panel-title"><span className="section-number">01</span><h3>Choose your cube</h3><Layers3 size={17}/></div>
-     <div className="size-options">{[2,3,4,5,6].map(n=><button key={n} disabled={busy} className={size===n?'active':''} onClick={()=>{setSize(n);setLayer(0);reset(n);}}><strong>{n}×{n}</strong></button>)}</div>
+     <div className="size-options">{Array.from({length:10},(_,i)=>i+2).map(n=><button key={n} disabled={busy} className={size===n?'active':''} onClick={()=>{setSize(n);setLayer(0);reset(n);}}><strong>{n}×{n}</strong></button>)}</div>
      <div className="setting-foot"><span><span className="small-dot"/> {size} × {size} × {size} cube</span><span>{size*size*6} stickers</span></div>
     </div>
     <div className="panel"><div className="panel-title"><span className="section-number">02</span><h3>Solve session</h3><TimerReset size={17}/></div>
@@ -207,7 +253,7 @@ export default function App(){
      <div className="move-top"><span>Turn a face</span><button className="undo-button" disabled={busy||history.length===0} onClick={undo}><Undo2 size={15}/> Undo</button></div>
      <div className="face-grid">{FACES.map(face=><div key={face} className="face-control"><button disabled={busy} title={`Turn ${face} clockwise`} onClick={()=>handleTurn(face,false,false)}>{face}</button><button disabled={busy} className="face-inverse" title={`Reverse ${face}`} onClick={()=>handleTurn(face,true,false)}>′</button></div>)}</div>
      <div className="layer-control"><label htmlFor="layer">Layer depth <span>{layer===0?'Outer face':`Layer ${layer+1}`}</span></label><input id="layer" type="range" min={0} max={size-1} value={layer} onChange={e=>setLayer(Number(e.target.value))} disabled={busy}/></div>
-     <p className="subnote">In Solve mode, drag a sticker horizontally or vertically to turn its row or column. Face buttons work in either mode.</p>
+     <p className="subnote">In Solve mode, drag stickers or use csTimer keys: J=U, F=U′, I=R, K=R′. Ctrl+Space switches modes.</p>
     </div>
     <div className="panel"><div className="panel-title"><span className="section-number">04</span><h3>Make it yours</h3><Palette size={17}/></div>
      <div className="appearance-label">APPEARANCE</div><div className="style-options"><button className={style==='filled'?'selected':''} onClick={()=>setStyle('filled')}><Square size={17} fill="currentColor"/> Filled</button><button className={style==='wireframe'?'selected':''} onClick={()=>setStyle('wireframe')}><Grip size={18}/> Wireframe</button></div>
@@ -216,6 +262,6 @@ export default function App(){
     <footer className="side-footer">BUILT FOR CURIOUS MINDS <span>✳</span> KEEP TWISTING</footer>
    </aside>
   </main>
-  {showHelp&&<div className="modal-backdrop" onClick={()=>setShowHelp(false)}><div className="help-modal" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setShowHelp(false)}>×</button><div className="eyebrow">THE QUICK GUIDE</div><h2>Let's get twisting.</h2><p>Choose a cube size, scramble it, then solve by dragging a colored sticker or using the face buttons. The clock starts on your first solving move.</p><p>Use Rotate view mode to drag/orbit and scroll to zoom without changing the puzzle. Switch to Solve mode to drag a sticker in the direction you want a slice to turn; the camera is locked in this mode. Face buttons remain available in both modes. U (top), D (bottom), L (left), R (right), F (front), B (back). Prime (′) turns counter-clockwise; use layer depth for inner slices.</p><p>Reverse turns are available from the face control buttons. Auto-solve reverses the session history and is not an arbitrary-state solver.</p>{lastScramble&&<div className="scramble-readout"><strong>Last scramble</strong><div>{lastScramble}</div></div>}<button className="primary-button" onClick={()=>setShowHelp(false)}>Got it <ArrowRight size={16}/></button></div></div>}
+  {showHelp&&<div className="modal-backdrop" onClick={()=>setShowHelp(false)}><div className="help-modal" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setShowHelp(false)}>×</button><div className="eyebrow">THE QUICK GUIDE</div><h2>Let's get twisting.</h2><p>Choose a cube size, scramble it, then solve by dragging a colored sticker or using the face buttons. The clock starts on your first solving move.</p><p>Ctrl+Space toggles Rotate View and Solve modes. In Solve mode use csTimer virtual-cube keys (J=U, F=U′, I=R, K=R′, plus wide and slice moves). Use Rotate view mode to drag/orbit and scroll to zoom without changing the puzzle. Switch to Solve mode to drag a sticker in the direction you want a slice to turn; the camera is locked in this mode. Face buttons remain available in both modes. U (top), D (bottom), L (left), R (right), F (front), B (back). Prime (′) turns counter-clockwise; use layer depth for inner slices.</p><p>Reverse turns are available from the face control buttons. Auto-solve reverses the session history and is not an arbitrary-state solver.</p>{lastScramble&&<div className="scramble-readout"><strong>Last scramble</strong><div>{lastScramble}</div></div>}<button className="primary-button" onClick={()=>setShowHelp(false)}>Got it <ArrowRight size={16}/></button></div></div>}
  </div>;
 }
