@@ -2,6 +2,8 @@
 
 An interactive 3D Rubik's Cube playground using React, Three.js, React Three Fiber, and Vite.
 
+![Cubing playground screenshot](cubing.png)
+
 ## Features
 
 - 2×2 to 6×6 cubes with logically correct face and inner-layer turns
