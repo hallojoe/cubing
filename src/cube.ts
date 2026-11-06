@@ -14,7 +14,7 @@ export const FACE_VECTORS: Record<Face,Vec3> = {
 };
 const VECTOR_FACES = new Map(Object.entries(FACE_VECTORS).map(([f,v])=>[v.join(','),f as Face]));
 export function initialCube(size:number):Cubie[] {
- if(!Number.isInteger(size)||size<2||size>6) throw new Error('Cube size must be 2–6');
+ if(!Number.isInteger(size)||size<2||size>11) throw new Error('Cube size must be 2–11');
  const cubies:Cubie[]=[];
  for(let x=0;x<size;x++) for(let y=0;y<size;y++) for(let z=0;z<size;z++){
   if(x!==0&&x!==size-1&&y!==0&&y!==size-1&&z!==0&&z!==size-1)continue;

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { applyMove, initialCube, invertMove, isSolved, scrambleMoves, FACES, type Move } from './cube';
 const signature=(cube:ReturnType<typeof initialCube>)=>cube.map(c=>`${c.id}:${c.pos.join(',')}:${Object.entries(c.stickers).sort().join('/')}`).sort();
 describe('cube model',()=>{
- for(const n of [2,3,4,5,6]){
+ for(const n of [2,3,4,5,6,7,8,9,10,11]){
   it(`${n}x${n}: four turns restore exact state`,()=>{
    const base=initialCube(n);
    for(const face of FACES)for(let layer=0;layer<n;layer++){
