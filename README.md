@@ -1,6 +1,6 @@
 # Cubing
 
-**[🎮 Play the live demo](https://hallojoe.github.io/cubing/)**
+**[🎮 Play the simulator](https://hallojoe.github.io/cubing/)** · **[📖 Open the Learning Lab](https://hallojoe.github.io/cubing/#/learn)**
 
 An interactive 3D Rubik's Cube playground using React, Three.js, React Three Fiber, and Vite.
 
@@ -16,6 +16,16 @@ An interactive 3D Rubik's Cube playground using React, Three.js, React Three Fib
 - Automated move-history reversal to recover a solved state
 - Filled or wireframe display, four color palettes (Classic Rubik's, Pastel, Neon, Mono)
 - Responsive dark interface
+
+## Learning Lab
+
+A separate guided learning page lives at `#/learn` (works when refreshed on GitHub Pages). The existing simulator remains at the root.
+
+1. **Choose your cube:** 2×2 through 11×11.
+2. **Choose an algorithm:** right and left triggers, Sexy Move, Sledgehammer, Sune, Anti-Sune, or OLL cross (the latter three for 3×3 and larger).
+3. **Walk through the moves:** every move is listed with noninteractive, isometric 3D before/after previews. Click any move to animate the main Three.js cube forward or backward from its current lesson step. Use the transport controls to navigate one move at a time or jump to start/end.
+
+The lesson begins from a solved reference cube and demonstrates **algorithm drills**, not a full solve for an arbitrary scrambled cube. The main teaching cube can be orbited to inspect each turn; previews are static snapshots.
 
 ## Run locally
 
