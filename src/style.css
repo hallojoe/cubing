@@ -37,3 +37,10 @@
 @media(max-width:520px){.mode-switch{top:51px;left:14px;right:auto}.mode-switch button{font-size:10px;padding:8px}.stage-tag{top:21px}}
 
 .keyboard-guide{display:grid;gap:7px;padding:12px;margin:12px 0;border:1px solid #465862;border-radius:8px;background:#14212c;color:#aebfd0;font-size:11px;line-height:1.5}.keyboard-guide strong{color:#d8edba}
+
+/* Link to separate learning page. Existing simulator controls are unchanged. */
+.top-actions{display:flex;align-items:center;gap:9px}
+.learning-launch-link{height:37px;display:flex;align-items:center;gap:8px;text-decoration:none;border-radius:8px;padding:0 13px;border:1px solid #4b5d4b;color:#c9ef82;background:#25382e;font-size:12px;font-weight:800}
+.learning-launch-link:hover{background:#354d3c}
+.learning-launch-link:focus-visible{outline:2px solid #c9ef82;outline-offset:3px}
+@media(max-width:520px){.learning-launch-link{padding:0 9px;font-size:11px;gap:5px}}
