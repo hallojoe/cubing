@@ -32,3 +32,17 @@ Choose a size, press **Scramble cube**, then select **Rotate view** to drag/orbi
 Sticker swipes use pointer capture for mouse and touch and select a single slice once the drag crosses a movement threshold. Camera rotation remains disabled in Solve mode. Manual turns, undo and auto-solve animate the selected layer before committing its updated sticker positions. Input is temporarily locked during each move to avoid overlapping turns; auto-solve runs its queued inverse moves in order.
 
 The pure cube model is implemented in `src/cube.ts`; React Three Fiber draws the model in `src/App.tsx`. The model invariant tests in `src/cube.test.ts` cover sizes 2–6.
+
+## Publishing on GitHub Pages
+
+This project is configured for the default GitHub Pages URL:
+**https://hallojoe.github.io/cubing/**
+
+1. In the GitHub repository, open **Settings → Pages**.
+2. Under **Build and deployment**, set **Source** to **GitHub Actions** (not *Deploy from a branch*).
+3. Merge the GitHub Pages deployment pull request into `main`. The deployment workflow runs automatically on a push to `main`, or you can run it from the **Actions** tab using **Run workflow**.
+4. Check **Actions → Deploy Cubing to GitHub Pages** for a successful deployment, then open the site URL above.
+
+The deployment action installs dependencies, builds the Vite app into `dist`, and publishes it. Vite uses `/cubing/` as the production asset base so JavaScript, CSS, and other assets load from the repository subpath. Local development continues to use `/`.
+
+**Note:** If you move to a custom domain or rename the repository, update the production `base` in `vite.config.ts` accordingly.
