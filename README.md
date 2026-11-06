@@ -1,5 +1,7 @@
 # Cubing
 
+**[🎮 Play the live demo](https://hallojoe.github.io/cubing/)**
+
 An interactive 3D Rubik's Cube playground using React, Three.js, React Three Fiber, and Vite.
 
 ![Cubing playground screenshot](cubing.png)
