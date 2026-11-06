@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, ThreeEvent } from '@react-three/fiber';
+import { Canvas, ThreeEvent, useFrame } from '@react-three/fiber';
 import { OrbitControls, RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { ArrowRight, Check, CircleHelp, Clock3, Grip, Layers3, Palette, RotateCcw, Shuffle, Sparkles, Square, TimerReset, Undo2, Zap } from 'lucide-react';
-import { applyMove, FACES, initialCube, invertMove, isSolved, moveLabel, scrambleMoves, type Cubie, type Face, type Move } from './cube';
+import { applyMove, FACE_AXES, FACES, initialCube, invertMove, isSolved, moveLabel, scrambleMoves, type Cubie, type Face, type Move } from './cube';
 
 const SCHEMES = {
  Classic:{U:'#f7f7f3',D:'#f1d135',L:'#ed7c25',R:'#db3d3d',F:'#24a76a',B:'#2963ce'},
@@ -14,6 +14,7 @@ const SCHEMES = {
 type Scheme=keyof typeof SCHEMES;
 type Style='filled'|'wireframe';
 type InteractionMode='view'|'solve';
+type AnimatedMove={move:Move;kind:'manual'|'undo'|'auto';id:number};
 const normals:Record<Face,[number,number,number]>={U:[0,1,0],D:[0,-1,0],L:[-1,0,0],R:[1,0,0],F:[0,0,1],B:[0,0,-1]};
 const orientations:Record<Face,[number,number,number]>={U:[-Math.PI/2,0,0],D:[Math.PI/2,0,0],L:[0,-Math.PI/2,0],R:[0,Math.PI/2,0],F:[0,0,0],B:[0,Math.PI,0]};
 const formatTime=(ms:number)=>{const t=Math.floor(ms/1000);return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}.${String(Math.floor((ms%1000)/10)).padStart(2,'0')}`;};
@@ -33,11 +34,35 @@ function Piece({piece,size,scheme,style,mode,onTurn}:{piece:Cubie;size:number;sc
   })}
  </group>;
 }
-function CubeScene({cubies,size,scheme,style,mode,onTurn}:{cubies:Cubie[];size:number;scheme:Scheme;style:Style;mode:InteractionMode;onTurn:(face:Face,shift:boolean,alt:boolean)=>void}){
+function TurningLayer({move,onComplete,children}:{move:Move;onComplete:()=>void;children:React.ReactNode}){
+ const pivot=useRef<THREE.Group>(null);
+ const progress=useRef(0);
+ const finished=useRef(false);
+ const {axis,sign}=FACE_AXES[move.face];
+ const target=(move.turns===2?2:-move.turns*sign)*Math.PI/2;
+ const duration=move.turns===2?.34:.24;
+ useFrame((_,delta)=>{
+  if(!pivot.current||finished.current)return;
+  progress.current=Math.min(1,progress.current+Math.min(delta,.05)/duration);
+  const t=progress.current;
+  const eased=t*t*(3-2*t);
+  pivot.current.rotation[axis]=target*eased;
+  if(t>=1){finished.current=true;onComplete();}
+ });
+ return <group ref={pivot}>{children}</group>;
+}
+function CubeScene({cubies,size,scheme,style,mode,onTurn,animation,onAnimationComplete}:{cubies:Cubie[];size:number;scheme:Scheme;style:Style;mode:InteractionMode;onTurn:(face:Face,shift:boolean,alt:boolean)=>void;animation:AnimatedMove|null;onAnimationComplete:()=>void}){
+ const active=animation?.move;
+ const axis=active?FACE_AXES[active.face].axis:'x';
+ const index={x:0,y:1,z:2}[axis];
+ const coordinate=active?(FACE_AXES[active.face].sign===1?size-1-active.layer:active.layer):-1;
+ const fixed=active?cubies.filter(c=>c.pos[index]!==coordinate):cubies;
+ const turning=active?cubies.filter(c=>c.pos[index]===coordinate):[];
+ const renderPiece=(piece:Cubie)=><Piece key={piece.id} piece={piece} size={size} scheme={scheme} style={style} mode={mode} onTurn={onTurn}/>;
  return <Canvas dpr={[1,2]} camera={{position:[5.6,4.5,6.8],fov:38}} gl={{antialias:true}}>
   <color attach="background" args={['#101923']}/>
   <ambientLight intensity={2}/><directionalLight position={[4,8,6]} intensity={2.3}/><directionalLight position={[-5,-3,-6]} intensity={1} color="#9ebbe9"/>
-  <group rotation={[0,-.15,0]}>{cubies.map(piece=><Piece key={piece.id} piece={piece} size={size} scheme={scheme} style={style} mode={mode} onTurn={onTurn}/>)}</group>
+  <group rotation={[0,-.15,0]}>{fixed.map(renderPiece)}{animation&&<TurningLayer key={animation.id} move={animation.move} onComplete={onAnimationComplete}>{turning.map(renderPiece)}</TurningLayer>}</group>
   <OrbitControls enabled={mode==='view'} enablePan={false} minDistance={5} maxDistance={13} enableDamping dampingFactor={.08}/>
  </Canvas>;
 }
@@ -54,30 +79,68 @@ export default function App(){
  const [elapsed,setElapsed]=useState(0);
  const [startedAt,setStartedAt]=useState<number|null>(null);
  const [busy,setBusy]=useState(false);
+ const [animation,setAnimation]=useState<AnimatedMove|null>(null);
  const [notice,setNotice]=useState('Ready to twist?');
  const [showHelp,setShowHelp]=useState(false);
  const [lastScramble,setLastScramble]=useState('');
- const cubeRef=useRef(cubies),historyRef=useRef(history),busyRef=useRef(false),timerRef=useRef<number|null>(null);
+ const cubeRef=useRef(cubies),historyRef=useRef(history),busyRef=useRef(false);
+ const activeRef=useRef<AnimatedMove|null>(null),autoQueueRef=useRef<Move[]>([]),animationIdRef=useRef(0);
  const solved=useMemo(()=>isSolved(cubies,size),[cubies,size]);
  useEffect(()=>{cubeRef.current=cubies;},[cubies]);
  useEffect(()=>{historyRef.current=history;},[history]);
  useEffect(()=>{if(!running||startedAt===null)return;const i=window.setInterval(()=>setElapsed(performance.now()-startedAt),33);return()=>window.clearInterval(i);},[running,startedAt]);
- useEffect(()=>()=>{if(timerRef.current!==null)window.clearInterval(timerRef.current);},[]);
+
  const reset=(n=size)=>{
-  if(timerRef.current!==null)window.clearInterval(timerRef.current);timerRef.current=null;busyRef.current=false;setBusy(false);
+  if(busyRef.current)return;
+  autoQueueRef.current=[];activeRef.current=null;setAnimation(null);
   const next=initialCube(n);cubeRef.current=next;historyRef.current=[];setCubies(next);setHistory([]);
   setMoves(0);setStartedAt(null);setRunning(false);setElapsed(0);setLastScramble('');setNotice('Cube reset. Ready to solve.');
  };
+ const startAnimation=(move:Move,kind:AnimatedMove['kind'])=>{
+  if(kind!=='auto'){if(busyRef.current)return;busyRef.current=true;setBusy(true);}
+  const next={move,kind,id:++animationIdRef.current};
+  activeRef.current=next;setAnimation(next);
+ };
+ const completeAnimation=()=>{
+  const active=activeRef.current;
+  if(!active)return;
+  const {move,kind}=active;
+  const next=applyMove(cubeRef.current,size,move);
+  cubeRef.current=next;setCubies(next);
+  const log=kind==='manual'?[...historyRef.current,move]:historyRef.current.slice(0,-1);
+  historyRef.current=log;setHistory(log);
+  const done=isSolved(next,size);
+  if(kind!=='auto'){
+   setMoves(n=>n+1);
+   if(done){
+    setRunning(false);
+    setStartedAt(t=>{if(t!==null)setElapsed(performance.now()-t);return null;});
+    setNotice('Solved! Beautiful work.');
+   }else if(kind==='manual'){
+    setNotice('Keep going — you’ve got this.');
+   }
+  }
+  if(kind==='auto'&&autoQueueRef.current.length>0){
+   const nextMove=autoQueueRef.current.shift()!;
+   const following={move:nextMove,kind:'auto' as const,id:++animationIdRef.current};
+   activeRef.current=following;setAnimation(following);
+  }else{
+   activeRef.current=null;setAnimation(null);autoQueueRef.current=[];
+   busyRef.current=false;setBusy(false);
+   if(kind==='auto')setNotice('Auto-solve complete!');
+  }
+ };
  const turn=(move:Move)=>{
   if(busyRef.current)return;
-  const next=applyMove(cubeRef.current,size,move);cubeRef.current=next;setCubies(next);
-  const log=[...historyRef.current,move];historyRef.current=log;setHistory(log);setMoves(m=>m+1);
-  if(isSolved(next,size)){
-   setRunning(false);setStartedAt(t=>{if(t!==null)setElapsed(performance.now()-t);return null;});setNotice('Solved! Beautiful work.');
-  }else{setRunning(true);setStartedAt(t=>t??performance.now());setNotice('Keep going — you’ve got this.');}
+  if(!running&&startedAt===null&&!isSolved(cubeRef.current,size)){
+   setRunning(true);setStartedAt(performance.now());
+  }else if(!running&&startedAt===null){
+   setRunning(true);setStartedAt(performance.now());
+  }
+  startAnimation(move,'manual');
  };
  const scramble=()=>{
-  if(timerRef.current!==null)window.clearInterval(timerRef.current);timerRef.current=null;busyRef.current=false;setBusy(false);
+  if(busyRef.current)return;
   const sequence=scrambleMoves(size);let next=initialCube(size);for(const move of sequence)next=applyMove(next,size,move);
   cubeRef.current=next;historyRef.current=sequence;setCubies(next);setHistory(sequence);
   setMoves(0);setStartedAt(null);setRunning(false);setElapsed(0);
@@ -85,21 +148,15 @@ export default function App(){
  };
  const undo=()=>{
   if(busyRef.current||historyRef.current.length===0)return;
-  const log=historyRef.current.slice(),previous=log.pop()!;
-  const next=applyMove(cubeRef.current,size,invertMove(previous));
-  cubeRef.current=next;historyRef.current=log;setCubies(next);setHistory(log);setMoves(v=>v+1);
-  if(isSolved(next,size)){setRunning(false);setStartedAt(null);setNotice('Solved!');}
+  startAnimation(invertMove(historyRef.current[historyRef.current.length-1]),'undo');
  };
  const autoSolve=()=>{
   if(busyRef.current||historyRef.current.length===0)return;
   const inverses=historyRef.current.slice().reverse().map(invertMove);
-  busyRef.current=true;setBusy(true);setRunning(false);setStartedAt(null);setNotice('Rewinding your moves…');
-  let i=0;
-  timerRef.current=window.setInterval(()=>{
-   if(i>=inverses.length){if(timerRef.current!==null)window.clearInterval(timerRef.current);timerRef.current=null;busyRef.current=false;setBusy(false);setNotice('Auto-solve complete!');return;}
-   const next=applyMove(cubeRef.current,size,inverses[i++]);cubeRef.current=next;setCubies(next);
-   const log=historyRef.current.slice(0,-1);historyRef.current=log;setHistory(log);
-  },65);
+  busyRef.current=true;setBusy(true);setRunning(false);setStartedAt(null);
+  setNotice('Rewinding your moves…');
+  autoQueueRef.current=inverses.slice(1);
+  startAnimation(inverses[0],'auto');
  };
  const handleTurn=(face:Face,shift:boolean,alt:boolean)=>turn({face,layer:Math.min(layer,size-1),turns:alt?2:shift?-1:1});
  return <div className="app">
@@ -109,7 +166,7 @@ export default function App(){
     <div className="viewer-heading"><div className="eyebrow"><span className="eyebrow-line"/> THE PUZZLE</div><h1>Think outside<br/><em>the cube.</em></h1><p>A little twist. A lot of possibilities.</p></div>
     <div className="cube-stage"><div className="scene-glow"/><div className="stage-tag"><span className="live-dot"/> INTERACTIVE 3D</div>
      <div className="mode-switch" role="group" aria-label="Cube interaction mode"><button type="button" className={mode==='view'?'active':''} aria-pressed={mode==='view'} onClick={()=>setMode('view')}><RotateCcw size={15}/> Rotate view</button><button type="button" className={mode==='solve'?'active':''} aria-pressed={mode==='solve'} onClick={()=>setMode('solve')}><Grip size={15}/> Solve</button></div>
-     <div className={`stage-cube mode-${mode}`}><CubeScene cubies={cubies} size={size} style={style} scheme={scheme} mode={mode} onTurn={handleTurn}/></div>
+     <div className={`stage-cube mode-${mode}`}><CubeScene cubies={cubies} size={size} style={style} scheme={scheme} mode={mode} onTurn={handleTurn} animation={animation} onAnimationComplete={completeAnimation}/></div>
      <div className="stage-bottom"><span><Grip size={16}/>{mode==='view'?'DRAG TO ROTATE VIEW':'CLICK STICKERS TO TURN FACES'}</span><span>{mode==='view'?'SCROLL TO ZOOM +':'CAMERA LOCKED · SWITCH TO ROTATE VIEW'}</span></div></div>
     <div className="status-bar"><div className="status-icon">{solved?<Check size={18}/>:<Sparkles size={18}/>}</div><div><strong>{solved?'All sides aligned':'Puzzle in progress'}</strong><span>{notice}</span></div><span className="status-pill">{solved?'SOLVED':'UNSOLVED'}</span></div>
    </section>
