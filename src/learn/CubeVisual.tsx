@@ -16,7 +16,7 @@ const rotations: Record<Face,[number,number,number]> = {
 const bodyGeometry=new THREE.BoxGeometry(1,1,1);
 const stickerGeometry=new THREE.PlaneGeometry(1,1);
 const bodyMaterial=new THREE.MeshStandardMaterial({color:'#121e29',roughness:.55});
-const stickerMaterials=Object.fromEntries(FACES.map(face=>[face,new THREE.MeshStandardMaterial({color:COLORS[face],roughness:.4,side:THREE.DoubleSide})])) as Record<Face,THREE.Material>;
+const stickerMaterials=FACES.reduce((map,face)=>{map[face]=new THREE.MeshStandardMaterial({color:COLORS[face],roughness:.4,side:THREE.DoubleSide});return map;},{} as Record<Face,THREE.MeshStandardMaterial>);
 
 function CubieMesh({cubie,size}:{cubie:Cubie;size:number}){
  const unit=3.1/size;
