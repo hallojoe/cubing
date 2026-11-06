@@ -16,7 +16,7 @@ const SCHEMES = {
 type Scheme=keyof typeof SCHEMES;
 type Style='filled'|'wireframe';
 type InteractionMode='view'|'solve';
-type AnimatedMove={move:Move;kind:'manual'|'undo'|'auto';id:number};
+type AnimatedMove={move:Move;moves:Move[];kind:'manual'|'undo'|'auto';id:number};
 const normals:Record<Face,[number,number,number]>={U:[0,1,0],D:[0,-1,0],L:[-1,0,0],R:[1,0,0],F:[0,0,1],B:[0,0,-1]};
 const orientations:Record<Face,[number,number,number]>={U:[-Math.PI/2,0,0],D:[Math.PI/2,0,0],L:[0,-Math.PI/2,0],R:[0,Math.PI/2,0],F:[0,0,0],B:[0,Math.PI,0]};
 const SHARED_BOX=new THREE.BoxGeometry(1,1,1);
@@ -85,9 +85,9 @@ function CubeScene({cubies,size,scheme,style,mode,onDragTurn,animation,onAnimati
  const active=animation?.move;
  const axis=active?FACE_AXES[active.face].axis:'x';
  const index={x:0,y:1,z:2}[axis];
- const coordinate=active?(FACE_AXES[active.face].sign===1?size-1-active.layer:active.layer):-1;
- const fixed=active?cubies.filter(c=>c.pos[index]!==coordinate):cubies;
- const turning=active?cubies.filter(c=>c.pos[index]===coordinate):[];
+ const coordinates=new Set(animation?.moves.map(move=>FACE_AXES[move.face].sign===1?size-1-move.layer:move.layer)??[]);
+ const fixed=active?cubies.filter(c=>!coordinates.has(c.pos[index])):cubies;
+ const turning=active?cubies.filter(c=>coordinates.has(c.pos[index])):[];
  const renderPiece=(piece:Cubie)=><Piece key={piece.id} piece={piece} size={size} scheme={scheme} style={style} mode={mode} onDragTurn={onDragTurn} disabled={animation!==null}/>;
  return <Canvas dpr={[1,2]} camera={{position:[5.6,4.5,6.8],fov:38}} gl={{antialias:true}}>
   <color attach="background" args={['#101923']}/>
@@ -115,7 +115,7 @@ export default function App(){
  const [lastScramble,setLastScramble]=useState('');
  const cubeRef=useRef(cubies),historyRef=useRef(history),busyRef=useRef(false);
  const activeRef=useRef<AnimatedMove|null>(null),autoQueueRef=useRef<Move[]>([]),animationIdRef=useRef(0);
- const manualRemainderRef=useRef<Move[]>([]),manualQueueRef=useRef<Move[][]>([]);
+ const manualGroupsRef=useRef<number[]>([]),manualQueueRef=useRef<Move[][]>([]);
  const solved=useMemo(()=>isSolved(cubies,size),[cubies,size]);
  useEffect(()=>{cubeRef.current=cubies;},[cubies]);
  useEffect(()=>{historyRef.current=history;},[history]);
@@ -123,60 +123,46 @@ export default function App(){
 
  const reset=(n=size)=>{
   if(busyRef.current)return;
-  autoQueueRef.current=[];manualRemainderRef.current=[];manualQueueRef.current=[];activeRef.current=null;setAnimation(null);
+  autoQueueRef.current=[];manualGroupsRef.current=[];manualQueueRef.current=[];activeRef.current=null;setAnimation(null);
   const next=initialCube(n);cubeRef.current=next;historyRef.current=[];setCubies(next);setHistory([]);
   setMoves(0);setStartedAt(null);setRunning(false);setElapsed(0);setLastScramble('');setNotice('Cube reset. Ready to solve.');
  };
- const startAnimation=(move:Move,kind:AnimatedMove['kind'])=>{
+ const startAnimation=(move:Move,kind:AnimatedMove['kind'],moves:Move[]=[move])=>{
   if(kind!=='auto'){if(busyRef.current)return;busyRef.current=true;setBusy(true);}
-  const next={move,kind,id:++animationIdRef.current};
+  const next={move,moves,kind,id:++animationIdRef.current};
   activeRef.current=next;setAnimation(next);
  };
  const completeAnimation=()=>{
   const active=activeRef.current;
   if(!active)return;
-  const {move,kind}=active;
-  const next=applyMove(cubeRef.current,size,move);
+  const {kind,moves}=active;
+  const next=moves.reduce((cube,move)=>applyMove(cube,size,move),cubeRef.current);
   cubeRef.current=next;setCubies(next);
-  const log=kind==='manual'?[...historyRef.current,move]:historyRef.current.slice(0,-1);
+  const log=kind==='manual'?[...historyRef.current,...moves]:historyRef.current.slice(0,-moves.length);
   historyRef.current=log;setHistory(log);
   const done=isSolved(next,size);
-  if(kind==='undo'){
-   setMoves(n=>n+1);
-   if(done){
-    setRunning(false);
-    setStartedAt(t=>{if(t!==null)setElapsed(performance.now()-t);return null;});
-    setNotice('Solved! Beautiful work.');
-
-   }
-  }
-  if(kind==='manual'&&manualRemainderRef.current.length>0){
-   const nextMove=manualRemainderRef.current.shift()!;
-   const following={move:nextMove,kind:'manual' as const,id:++animationIdRef.current};
-   activeRef.current=following;setAnimation(following);
-   return;
-  }
   if(kind==='manual'){
+   manualGroupsRef.current.push(moves.length);
    setMoves(n=>n+1);
-   if(done){
-    setRunning(false);
-    setStartedAt(t=>{if(t!==null)setElapsed(performance.now()-t);return null;});
-    setNotice('Solved! Beautiful work.');
-   }else setNotice('Keep going — you’ve got this.');
+   if(done){setRunning(false);setStartedAt(t=>{if(t!==null)setElapsed(performance.now()-t);return null;});setNotice('Solved! Beautiful work.');}
+   else setNotice('Keep going — you’ve got this.');
    if(manualQueueRef.current.length>0){
     const sequence=manualQueueRef.current.shift()!;
-    manualRemainderRef.current=sequence.slice(1);
-    const following={move:sequence[0],kind:'manual' as const,id:++animationIdRef.current};
+    const following={move:sequence[0],moves:sequence,kind:'manual' as const,id:++animationIdRef.current};
     activeRef.current=following;setAnimation(following);
     return;
    }
+  }else if(kind==='undo'){
+   setMoves(n=>n+1);
+   if(done){setRunning(false);setStartedAt(t=>{if(t!==null)setElapsed(performance.now()-t);return null;});setNotice('Solved! Beautiful work.');}
   }
   if(kind==='auto'&&autoQueueRef.current.length>0){
    const nextMove=autoQueueRef.current.shift()!;
-   const following={move:nextMove,kind:'auto' as const,id:++animationIdRef.current};
+   const following={move:nextMove,moves:[nextMove],kind:'auto' as const,id:++animationIdRef.current};
    activeRef.current=following;setAnimation(following);
   }else{
    activeRef.current=null;setAnimation(null);autoQueueRef.current=[];
+   if(kind==='auto')manualGroupsRef.current=[];
    busyRef.current=false;setBusy(false);
    if(kind==='auto')setNotice('Auto-solve complete!');
   }
@@ -188,8 +174,7 @@ export default function App(){
    return;
   }
   if(!running&&startedAt===null){setRunning(true);setStartedAt(performance.now());}
-  manualRemainderRef.current=sequence.slice(1);
-  startAnimation(sequence[0],'manual');
+  startAnimation(sequence[0],'manual',sequence);
  };
  const turn=(move:Move)=>turnSequence([move]);
  useEffect(()=>{
@@ -212,13 +197,15 @@ export default function App(){
  const scramble=()=>{
   if(busyRef.current)return;
   const sequence=scrambleMoves(size);let next=initialCube(size);for(const move of sequence)next=applyMove(next,size,move);
-  cubeRef.current=next;historyRef.current=sequence;setCubies(next);setHistory(sequence);
+  cubeRef.current=next;historyRef.current=sequence;manualGroupsRef.current=[];setCubies(next);setHistory(sequence);
   setMoves(0);setStartedAt(null);setRunning(false);setElapsed(0);
   setLastScramble(sequence.map(moveLabel).join(' '));setNotice('Scrambled! The clock starts on your first move.');
  };
  const undo=()=>{
   if(busyRef.current||historyRef.current.length===0)return;
-  startAnimation(invertMove(historyRef.current[historyRef.current.length-1]),'undo');
+  const length=manualGroupsRef.current.pop()??1;
+  const inverses=historyRef.current.slice(-length).reverse().map(invertMove);
+  startAnimation(inverses[0],'undo',inverses);
  };
  const autoSolve=()=>{
   if(busyRef.current||historyRef.current.length===0)return;
