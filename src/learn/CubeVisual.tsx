@@ -33,14 +33,14 @@ function CubieMesh({cubie,size}:{cubie:Cubie;size:number}){
  </group>;
 }
 
-export type PlayingMove={move:Move;id:number;next:number};
-function AnimatedLayer({move,done,children}:{move:Move;done:()=>void;children:ReactNode}){
+export type PlayingMove={move:Move;id:number;next:number;layers?:number[]};
+function AnimatedLayer({move,done,children,speed=1}:{move:Move;done:()=>void;children:ReactNode;speed?:number}){
  const ref=useRef<THREE.Group>(null);
  const progress=useRef(0);
  const completed=useRef(false);
  const {axis,sign}=FACE_AXES[move.face];
  const target=(move.turns===2?2:-move.turns*sign)*Math.PI/2;
- const duration=move.turns===2?.4:.3;
+ const duration=(move.turns===2?.4:.3)/speed;
  useFrame((_,delta)=>{
   if(!ref.current||completed.current)return;
   progress.current=Math.min(1,progress.current+Math.min(delta,.05)/duration);
@@ -50,18 +50,18 @@ function AnimatedLayer({move,done,children}:{move:Move;done:()=>void;children:Re
  });
  return <group ref={ref}>{children}</group>;
 }
-export function TeachingCube({cubies,size,playing,onMoveFinished}:{cubies:Cubie[];size:number;playing:PlayingMove|null;onMoveFinished:()=>void}){
+export function TeachingCube({cubies,size,playing,onMoveFinished,speed=1}:{cubies:Cubie[];size:number;playing:PlayingMove|null;onMoveFinished:()=>void;speed?:number}){
  const axis=playing?FACE_AXES[playing.move.face].axis:'x';
  const coordIndex={x:0,y:1,z:2}[axis];
- const layerCoordinate=playing?(FACE_AXES[playing.move.face].sign===1?size-1-playing.move.layer:playing.move.layer):-1;
- const still=playing?cubies.filter(c=>c.pos[coordIndex]!==layerCoordinate):cubies;
- const turning=playing?cubies.filter(c=>c.pos[coordIndex]===layerCoordinate):[];
+ const coordinates=playing?(playing.layers??[playing.move.layer]).map(layer=>FACE_AXES[playing.move.face].sign===1?size-1-layer:layer):[];
+ const still=playing?cubies.filter(c=>!coordinates.includes(c.pos[coordIndex])):cubies;
+ const turning=playing?cubies.filter(c=>coordinates.includes(c.pos[coordIndex])):[];
  return <Canvas dpr={[1,1.6]} camera={{position:[5,4,6.7],fov:38}} gl={{antialias:true}}>
   <color attach="background" args={['#101a25']}/>
   <ambientLight intensity={1.75}/><directionalLight intensity={2.2} position={[4,7,6]}/>
   <group rotation={[0,-.15,0]}>
    {still.map(c=><CubieMesh key={c.id} cubie={c} size={size}/>)}
-   {playing&&<AnimatedLayer key={playing.id} move={playing.move} done={onMoveFinished}>
+   {playing&&<AnimatedLayer key={playing.id} move={playing.move} done={onMoveFinished} speed={speed}>
     {turning.map(c=><CubieMesh key={c.id} cubie={c} size={size}/>)}
    </AnimatedLayer>}
   </group>
@@ -91,3 +91,4 @@ export const StaticCubePreview=memo(function StaticCubePreview({cubies,size,labe
    stroke="#172431" strokeWidth={size>=8?1.1:1.4} strokeLinejoin="round"/>)}
  </svg>;
 });
+
