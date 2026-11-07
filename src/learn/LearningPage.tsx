@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronLeft, ChevronRight, CornerDownRight, Play, RotateCcw, Sparkles } from 'lucide-react';
 import { invertMove, type Move } from '../cube';
-import { ALGORITHMS, buildLesson, type Algorithm } from './lesson';
+import { algorithmsForSize, applicabilityNote, buildLesson, type Algorithm } from './lesson';
 import { StaticCubePreview, TeachingCube, type PlayingMove } from './CubeVisual';
 import './learning.css';
 
@@ -28,7 +28,7 @@ export default function LearningPage(){
  const [target,setTarget]=useState(0);
  const [playing,setPlaying]=useState<PlayingMove|null>(null);
  const animationId=useRef(0);
- const available=useMemo(()=>ALGORITHMS.filter(a=>a.minSize<=size),[size]);
+ const available=useMemo(()=>algorithmsForSize(size),[size]);
  const algorithm=available.find(a=>a.id===algorithmId)??available[0];
  const lesson=useMemo(()=>buildLesson(size,algorithm),[size,algorithm]);
  const steps=lesson.moves.length;
@@ -64,6 +64,7 @@ export default function LearningPage(){
    <nav className="learning-nav" aria-label="Main navigation">
     <a href="#/">Simulator</a>
     <a href="#/learn" aria-current="page" className="current">Learning lab</a>
+    <a href="#/pro">Pro lab</a>
    </nav>
    <div className="learning-top-note"><BookOpen size={16}/> GUIDED PRACTICE</div>
   </header>
@@ -89,6 +90,7 @@ export default function LearningPage(){
    </section>}
    {phase===1&&<section className="learning-selection">
     <div className="learning-section-heading"><span>02 / THE TECHNIQUE</span><h2>What will you learn?</h2><p>Pick a repeatable move sequence. These are technique drills—not an automatic solution for a scrambled cube.</p></div>
+    <p className="learning-applicability" role="note">{applicabilityNote(algorithm,size)} {size===2&&'OLL Cross is hidden because this puzzle has no edges.'}</p>
     <div className="learning-algorithm-grid">{available.map(item=><button type="button" key={item.id} className={algorithm.id===item.id?'selected':''} aria-pressed={algorithm.id===item.id} onClick={()=>configureAlgorithm(item)}>
      <span className="algorithm-label">{item.level} <span>·</span> {item.notation.trim().split(/\s+/).length} moves</span>
      <strong>{item.title}</strong>
@@ -104,6 +106,7 @@ export default function LearningPage(){
       <div><span className="learning-kicker">{size}×{size} · {algorithm.level}</span><h2>{algorithm.title}</h2><p>{algorithm.use}</p></div>
       <button className="learning-secondary" onClick={()=>backTo(1)}><ArrowLeft size={15}/> Change algorithm</button>
      </div>
+     <p className="learning-applicability">{applicabilityNote(algorithm,size)} The walkthrough starts solved to demonstrate the effect, not from a case to solve.</p>
      <div className="learning-big-cube">
       <div className="learning-cube-caption"><span className="learning-pulse"/> TEACHING CUBE <small>DRAG TO ORBIT</small></div>
       <TeachingCube size={size} cubies={lesson.states[position]} playing={playing} onMoveFinished={complete}/>
@@ -133,3 +136,4 @@ export default function LearningPage(){
   <footer className="learning-footer"><span>LEARN · PRACTICE · MASTER</span><a href="#/">Back to simulator <ArrowRight size={14}/></a></footer>
  </div>;
 }
+

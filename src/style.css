@@ -44,3 +44,5 @@
 .learning-launch-link:hover{background:#354d3c}
 .learning-launch-link:focus-visible{outline:2px solid #c9ef82;outline-offset:3px}
 @media(max-width:520px){.learning-launch-link{padding:0 9px;font-size:11px;gap:5px}}
+
+@media(max-width:520px){.topbar{height:auto;min-height:68px;flex-wrap:wrap;justify-content:center;gap:12px;padding:14px}.top-actions{width:100%;justify-content:center;gap:7px}}
