@@ -26,3 +26,5 @@ jobs:
         run: npm run build
       - name: Check TypeScript
         run: npx tsc --noEmit
+      - name: Exercise replay, offline launch and app updates in Chrome
+        run: npm run test:browser

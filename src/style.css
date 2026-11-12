@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 :root{font-family:'DM Sans',sans-serif;color:#e9eff7;background:#0b121b;font-synthesis:none}
 *{box-sizing:border-box}body{margin:0;min-width:320px}button,input{font:inherit}button{cursor:pointer}button:disabled{opacity:.42;cursor:not-allowed}
 .app{min-height:100vh;background:#0c141e}.topbar{height:78px;display:flex;align-items:center;justify-content:space-between;padding:0 4.4%;border-bottom:1px solid #243140;background:#0d151f}
@@ -46,3 +45,76 @@
 @media(max-width:520px){.learning-launch-link{padding:0 9px;font-size:11px;gap:5px}}
 
 @media(max-width:520px){.topbar{height:auto;min-height:68px;flex-wrap:wrap;justify-content:center;gap:12px;padding:14px}.top-actions{width:100%;justify-content:center;gap:7px}}
+
+.icon-button, .app-tools, .drawer-header, .history-summary, .review-strip, .transport,
+.transport button, .transport label, .app-settings button, .mobile-history {
+  display: flex;
+  align-items: center;
+}
+.icon-button, .transport button, .transport select, .review-strip button, .app-settings button {
+  color: #dfebf3;
+  background: #20303e;
+  border: 1px solid #3d5060;
+  border-radius: 9px;
+  font: inherit;
+}
+.icon-button { width: 44px; height: 44px; justify-content: center; flex: none; }
+.icon-button:hover, .transport button:hover:not(:disabled) { background: #334756; }
+.app :focus-visible { outline: 2px solid #d6f69a; outline-offset: 2px; }
+.desktop-history { margin-top: 14px; }
+.mobile-history { display: none; }
+.history-panel { border: 1px solid #2c3c4c; border-radius: 12px; padding: 16px; background: #111d29; min-width: 0; }
+.history-summary { gap: 9px; font-size: 14px; }
+.history-summary svg { color: #b8d68f; }
+.history-summary span { margin-left: auto; color: #afbdca; font-size: 12px; }
+.frame-list { position: relative; display: flex; gap: 6px; overflow-x: auto; list-style: none; margin: 15px 0; padding: 3px 2px 7px; scrollbar-width: thin; }
+.frame-list li { flex: none; }
+.frame-list button { display: grid; gap: 3px; text-align: left; min-width: 52px; min-height: 48px; padding: 6px 10px; color: #e1e8ef; background: #1c2b38; border: 1px solid #374958; border-radius: 7px; font-size: 12px; font-weight: 700; }
+.frame-list small { color: #a5b7c8; font-size: 10px; }
+.frame-list [aria-current] { background: #2e4036; border-color: #c7eb89; color: #dcf7b5; }
+.transport { flex-wrap: wrap; gap: 8px; }
+.transport button, .transport select, .review-strip button, .app-settings button { padding: 0 12px; min-height: 40px; gap: 6px; font-size: 12px; }
+.transport .play { background: #c9ef82; border-color: #c9ef82; color: #19231c; font-weight: 700; }
+.transport label { gap: 6px; font-size: 12px; color: #afbdca; }
+.transport label select { padding: 0 5px; }
+.review-strip { gap: 8px; margin-top: 12px; color: #d2e6ad; font-size: 12px; }
+.review-strip span { margin-right: auto; }
+.control-drawer { position: fixed; inset: 0 0 0 auto; margin: 0; max-width: 100%; width: min(388px, 92vw); height: 100%; max-height: 100%; padding: max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) 16px; border: none; border-left: 1px solid #354858; background: #101b26; color: #e9eff7; overflow: auto; overscroll-behavior: contain; color-scheme: dark; box-shadow: -12px 0 45px #0005; }
+.control-drawer::backdrop { background: #03091180; }
+.drawer-header { justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.drawer-header h2 { margin: 0; font-size: 21px; letter-spacing: -.6px; }
+.control-drawer .panel, .control-drawer .help-button { margin-top: 14px; }
+.control-drawer .section-number { display: none; }
+.control-drawer .panel:first-of-type { margin-top: 0; }
+.control-drawer .app-settings h3 { margin: 0; font-size: 14px; }
+.drawer-note, .guide-copy, .app-settings p { font-size: 13px; line-height: 1.6; color: #b6c6d4; }
+.guide-copy .primary-button { padding: 0 18px; }
+.control-drawer:has(.history-panel) .history-summary strong { display: none; }
+.app-settings button { margin-top: 8px; }
+.compact-app { height: 100vh; height: 100dvh; min-height: 0; display: flex; flex-direction: column; background: #101923; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+.compact-app .topbar { flex: none; min-height: calc(60px + env(safe-area-inset-top)); height: auto; padding: calc(6px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 6px max(15px, env(safe-area-inset-left)); gap: 6px; flex-wrap: nowrap; justify-content: space-between; }
+.compact-app .brand { font-size: 18px; gap: 9px; }
+.compact-app .brand-mark { width: 23px; height: 23px; }
+.app-tools { gap: 3px; }
+.app-tools .icon-button { border-color: transparent; background: transparent; color: #c3cfda; }
+.app-tools .icon-button:hover { background: #253543; }
+.compact-app .workspace, .compact-app .viewer-column { display: flex; flex: 1; width: 100%; min-height: 0; padding: 0; max-width: none; margin: 0; flex-direction: column; }
+.compact-app .cube-stage { flex: 1; height: auto; min-height: 0; border: 0; border-radius: 0; margin: 0; }
+.compact-app .stage-tag { top: 20px; left: max(18px, env(safe-area-inset-left)); }
+.compact-app .mode-switch { top: auto; right: auto; bottom: calc(22px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); }
+.compact-app .mode-switch button { min-height: 44px; padding: 0 14px; font-size: 12px; }
+.compact-app .stage-bottom { left: 0; right: 0; bottom: calc(90px + env(safe-area-inset-bottom)); justify-content: center; font-size: 9px; }
+.compact-app .stage-bottom span:last-child { display: none; }
+.compact-app .review-strip { padding: 8px max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); margin: 0; }
+.compact-app .control-drawer .size-options button, .compact-app .face-control button, .control-drawer .transport button { min-height: 44px; }
+@media (max-width: 800px) {
+  .desktop-history { display: none; }
+  .mobile-history { display: flex; gap: 8px; font-size: 12px; }
+  .cube-stage .mobile-history { position: absolute; bottom: 46px; right: 14px; z-index: 3; }
+  .history-drawer { inset: auto 0 0 auto; width: min(400px, 96vw); height: auto; max-height: 50dvh; border-radius: 18px 0 0 0; border-top: 1px solid #354858; }
+  .history-drawer::backdrop { background: #03091128; }
+}
+@media (max-width: 370px) {
+  .compact-app .topbar { padding-left: 9px; padding-right: 5px; }
+  .compact-app .app-tools { gap: 0; }
+}
