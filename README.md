@@ -1,6 +1,6 @@
 # Cubing
 
-**[🎮 Play the simulator](https://hallojoe.github.io/cubing/)** · **[📖 Open the Learning Lab](https://hallojoe.github.io/cubing/#/learn)** · **[🧪 Open the Pro Lab](https://hallojoe.github.io/cubing/#/pro)**
+**[🎮 Play the simulator](https://hallojoe.github.io/cubing/)** · **[Mobile app](https://hallojoe.github.io/cubing/app/)** · **[📖 Open the Learning Lab](https://hallojoe.github.io/cubing/#/learn)** · **[🧪 Open the Pro Lab](https://hallojoe.github.io/cubing/#/pro)**
 
 An interactive 3D Rubik's Cube playground using React, Three.js, React Three Fiber, and Vite.
 
@@ -16,6 +16,16 @@ An interactive 3D Rubik's Cube playground using React, Three.js, React Three Fib
 - Automated move-history reversal to recover a solved state
 - Filled or wireframe display, four color palettes (Classic Rubik's, Pastel, Neon, Mono)
 - Responsive dark interface
+
+## Session replay and mobile app
+
+Your first turn starts recording. Frame 0 is the starting cube, including its scramble. Resetting, scrambling or choosing a size starts a fresh recording. Wide turns and whole-cube keyboard rotations each occupy one frame. Undo and auto-solve turns also appear in sequence.
+
+Open **Move history** beneath the desktop cube or use the history icon on a phone. Select a frame to inspect it, choose a frame interval, and use **Play** or **Pause**. **Back to live** returns to the latest cube and resumes the solve clock. Recordings last for the current page session.
+
+The [mobile app](https://hallojoe.github.io/cubing/app/) opens directly to the cube. Its header opens history, cube size, solve controls and settings. On iPhone, use Safari’s Share menu and **Add to Home Screen**. On Android, use **Install Cubing** in Settings when offered, or the browser’s install command.
+
+Open the app once online and look for **Ready for offline use** in Settings. The app checks for updates when it opens, comes back into view, reconnects, and hourly while open. Available updates can be applied with **Restart to update** in Settings after finishing your session.
 
 ## Learning Lab
 

@@ -2,10 +2,15 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Canvas, ThreeEvent, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
+import { firstFrame, turnFrame, type TurnKind } from './session/recorder';
+import { useReplay } from './session/useReplay';
+import { HistoryPanel } from './session/HistoryPanel';
+import { Drawer } from './Drawer';
+import { AppSettings } from './pwa/AppSettings';
 import { dragToMove } from './drag';
-import { keyboardMoves } from './keyboard';
+import { CSTIMER_KEYS, keyboardMoves } from './keyboard';
 import { takeNextManualSequence } from './manualQueue';
-import { ArrowRight, BookOpen, Check, CircleHelp, Clock3, Grip, Layers3, Palette, RotateCcw, Shuffle, Sparkles, Square, TimerReset, Undo2, Zap } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, CircleHelp, Clock3, Grip, History, Layers3, PanelRightOpen, Settings2, Smartphone, Palette, RotateCcw, Shuffle, Sparkles, Square, TimerReset, Undo2, Zap } from 'lucide-react';
 import { applyMove, FACE_AXES, FACES, initialCube, invertMove, isSolved, moveLabel, scrambleMoves, type Cubie, type Face, type Move } from './cube';
 
 const SCHEMES = {
@@ -17,7 +22,7 @@ const SCHEMES = {
 type Scheme=keyof typeof SCHEMES;
 type Style='filled'|'wireframe';
 type InteractionMode='view'|'solve';
-type AnimatedMove={move:Move;moves:Move[];kind:'manual'|'undo'|'auto';id:number};
+type AnimatedMove={move:Move;moves:Move[];kind:TurnKind;id:number;notation?:string};
 const normals:Record<Face,[number,number,number]>={U:[0,1,0],D:[0,-1,0],L:[-1,0,0],R:[1,0,0],F:[0,0,1],B:[0,0,-1]};
 const orientations:Record<Face,[number,number,number]>={U:[-Math.PI/2,0,0],D:[Math.PI/2,0,0],L:[0,-Math.PI/2,0],R:[0,Math.PI/2,0],F:[0,0,0],B:[0,Math.PI,0]};
 const SHARED_BOX=new THREE.BoxGeometry(1,1,1);
@@ -28,6 +33,16 @@ const SHARED_STICKER_EDGES=new THREE.EdgesGeometry(SHARED_STICKER);
 const STICKER_MATERIALS=Object.fromEntries(Object.entries(SCHEMES).map(([name,colors])=>[name,Object.fromEntries(Object.entries(colors).map(([face,color])=>[face,{filled:new THREE.MeshStandardMaterial({color,roughness:.36,side:THREE.DoubleSide}),wireframe:new THREE.MeshStandardMaterial({color,roughness:.36,side:THREE.DoubleSide,transparent:true,opacity:.25})}]))])) as Record<Scheme,Record<Face,Record<Style,THREE.MeshStandardMaterial>>>;
 const formatTime=(ms:number)=>{const t=Math.floor(ms/1000);return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}.${String(Math.floor((ms%1000)/10)).padStart(2,'0')}`;};
 
+function SessionClock({ startedAt, elapsed, paused }: {startedAt: number | null; elapsed: number; paused: boolean}) {
+ const [now, setNow] = useState(() => performance.now());
+ useEffect(() => {
+  if (startedAt === null || paused) return;
+  setNow(performance.now());
+  const timer = window.setInterval(() => setNow(performance.now()), 33);
+  return () => window.clearInterval(timer);
+ }, [startedAt, paused]);
+ return <>{formatTime(startedAt === null ? elapsed : Math.max(0, now - startedAt))}</>;
+}
 function Piece({piece,size,scheme,style,mode,onDragTurn,disabled}:{piece:Cubie;size:number;scheme:Scheme;style:Style;mode:InteractionMode;onDragTurn:(move:Move)=>void;disabled:boolean}){
  const {camera}=useThree();
  const gesture=useRef<{pointerId:number;x:number;y:number;face:Face}|null>(null);
@@ -85,6 +100,14 @@ function TurningLayer({move,onComplete,children}:{move:Move;onComplete:()=>void;
  });
  return <group ref={pivot}>{children}</group>;
 }
+function FitCamera() {
+ const { camera, size } = useThree();
+ useEffect(() => {
+  camera.zoom = Math.min(1, size.width / Math.max(1, size.height) / 0.82);
+  camera.updateProjectionMatrix();
+ }, [camera, size.width, size.height]);
+ return null;
+}
 function CubeScene({cubies,size,scheme,style,mode,onDragTurn,animation,onAnimationComplete}:{cubies:Cubie[];size:number;scheme:Scheme;style:Style;mode:InteractionMode;onDragTurn:(move:Move)=>void;animation:AnimatedMove|null;onAnimationComplete:()=>void}){
  const active=animation?.move;
  const axis=active?FACE_AXES[active.face].axis:'x';
@@ -95,14 +118,22 @@ function CubeScene({cubies,size,scheme,style,mode,onDragTurn,animation,onAnimati
  const renderPiece=(piece:Cubie)=><Piece key={piece.id} piece={piece} size={size} scheme={scheme} style={style} mode={mode} onDragTurn={onDragTurn} disabled={animation!==null}/>;
  return <Canvas dpr={[1,2]} camera={{position:[5.6,4.5,6.8],fov:38}} gl={{antialias:true}}>
   <color attach="background" args={['#101923']}/>
+  <FitCamera/>
   <ambientLight intensity={2}/><directionalLight position={[4,8,6]} intensity={2.3}/><directionalLight position={[-5,-3,-6]} intensity={1} color="#9ebbe9"/>
   <group rotation={[0,-.15,0]}>{fixed.map(renderPiece)}{animation&&<TurningLayer key={animation.id} move={animation.move} onComplete={onAnimationComplete}>{turning.map(renderPiece)}</TurningLayer>}</group>
   <OrbitControls enabled={mode==='view'} enablePan={false} minDistance={5} maxDistance={13} enableDamping dampingFactor={.08}/>
  </Canvas>;
 }
-export default function App(){
+type Panel = 'history' | 'cube' | 'session' | 'settings';
+const panelNames: Record<Panel, string> = { history: 'Move history', cube: 'Choose your cube', session: 'Solve session', settings: 'Settings' };
+const panelButtons = { history: PanelRightOpen, cube: Layers3, session: TimerReset, settings: Settings2 };
+
+export default function App({standalone = false}: {standalone?: boolean}){
+ const [panel, setPanel] = useState<Panel | null>(null);
  const [size,setSize]=useState(3);
  const [cubies,setCubies]=useState(()=>initialCube(3));
+ const [frames, setFrames] = useState(() => [firstFrame(cubies)]);
+ const replay = useReplay(frames);
  const [style,setStyle]=useState<Style>('filled');
  const [mode,setMode]=useState<InteractionMode>('view');
  const [scheme,setScheme]=useState<Scheme>('Classic');
@@ -119,21 +150,31 @@ export default function App(){
  const [lastScramble,setLastScramble]=useState('');
  const cubeRef=useRef(cubies),historyRef=useRef(history),busyRef=useRef(false);
  const activeRef=useRef<AnimatedMove|null>(null),autoQueueRef=useRef<Move[]>([]),animationIdRef=useRef(0);
- const manualGroupsRef=useRef<number[]>([]),manualQueueRef=useRef<Move[][]>([]);
+ const manualGroupsRef=useRef<number[]>([]),manualQueueRef=useRef<{moves:Move[];notation?:string}[]>([]);
  const solved=useMemo(()=>isSolved(cubies,size),[cubies,size]);
  useEffect(()=>{cubeRef.current=cubies;},[cubies]);
  useEffect(()=>{historyRef.current=history;},[history]);
- useEffect(()=>{if(!running||startedAt===null)return;const i=window.setInterval(()=>setElapsed(performance.now()-startedAt),33);return()=>window.clearInterval(i);},[running,startedAt]);
+ // Pause the solve clock during inspection and retain its accumulated time.
+ useEffect(() => {
+  if (!running) return;
+  if (replay.reviewing && startedAt !== null) {
+   setElapsed(performance.now() - startedAt);
+   setStartedAt(null);
+  } else if (!replay.reviewing && startedAt === null) {
+   setStartedAt(performance.now() - elapsed);
+  }
+ }, [running, replay.reviewing, startedAt, elapsed]);
 
  const reset=(n=size)=>{
   if(busyRef.current)return;
   autoQueueRef.current=[];manualGroupsRef.current=[];manualQueueRef.current=[];activeRef.current=null;setAnimation(null);
   const next=initialCube(n);cubeRef.current=next;historyRef.current=[];setCubies(next);setHistory([]);
   setMoves(0);setStartedAt(null);setRunning(false);setElapsed(0);setLastScramble('');setNotice('Cube reset. Ready to solve.');
+  replay.live(); setFrames([firstFrame(next)]);
  };
- const startAnimation=(move:Move,kind:AnimatedMove['kind'],moves:Move[]=[move])=>{
+ const startAnimation=(move:Move,kind:AnimatedMove['kind'],moves:Move[]=[move],notation?:string)=>{
   if(kind!=='auto'){if(busyRef.current)return;busyRef.current=true;setBusy(true);}
-  const next={move,moves,kind,id:++animationIdRef.current};
+  const next={move,moves,kind,notation,id:++animationIdRef.current};
   activeRef.current=next;setAnimation(next);
  };
  const completeAnimation=()=>{
@@ -142,25 +183,27 @@ export default function App(){
   const {kind,moves}=active;
   const next=moves.reduce((cube,move)=>applyMove(cube,size,move),cubeRef.current);
   cubeRef.current=next;setCubies(next);
+  const frame = turnFrame(next, moves, kind, active.notation);
+  setFrames(previous => [...previous, frame]);
   const log=kind==='manual'?[...historyRef.current,...moves]:historyRef.current.slice(0,-moves.length);
   historyRef.current=log;setHistory(log);
   const done=isSolved(next,size);
   if(kind==='manual'){
    manualGroupsRef.current.push(moves.length);
    setMoves(n=>n+1);
-   if(done){setRunning(false);setStartedAt(t=>{if(t!==null)setElapsed(performance.now()-t);return null;});setNotice('Solved! Beautiful work.');}
+   if(done){setRunning(false);if(startedAt!==null)setElapsed(performance.now()-startedAt);setStartedAt(null);setNotice('Solved! Beautiful work.');}
    else setNotice('Keep going — you’ve got this.');
    // A completed solve ends this timed session: discard any keys buffered
    // while the solving turn was animating rather than moving the solved cube.
    const queued=takeNextManualSequence(manualQueueRef.current,done);
    if(queued){
-    const following={move:queued[0],moves:queued,kind:'manual' as const,id:++animationIdRef.current};
+    const following={move:queued.moves[0],...queued,kind:'manual' as const,id:++animationIdRef.current};
     activeRef.current=following;setAnimation(following);
     return;
    }
   }else if(kind==='undo'){
    setMoves(n=>n+1);
-   if(done){setRunning(false);setStartedAt(t=>{if(t!==null)setElapsed(performance.now()-t);return null;});setNotice('Solved! Beautiful work.');}
+   if(done){setRunning(false);if(startedAt!==null)setElapsed(performance.now()-startedAt);setStartedAt(null);setNotice('Solved! Beautiful work.');}
   }
   if(kind==='auto'&&autoQueueRef.current.length>0){
    const nextMove=autoQueueRef.current.shift()!;
@@ -173,18 +216,19 @@ export default function App(){
    if(kind==='auto')setNotice('Auto-solve complete!');
   }
  };
- const turnSequence=(sequence:Move[])=>{
-  if(sequence.length===0||activeRef.current?.kind==='auto'||activeRef.current?.kind==='undo')return;
+ const turnSequence=(sequence:Move[],notation?:string)=>{
+  if(replay.reviewing||sequence.length===0||activeRef.current?.kind==='auto'||activeRef.current?.kind==='undo')return;
   if(busyRef.current){
-   if(manualQueueRef.current.length<48)manualQueueRef.current.push(sequence);
+   if(manualQueueRef.current.length<48)manualQueueRef.current.push({moves:sequence,notation});
    return;
   }
   if(!running&&startedAt===null){setRunning(true);setStartedAt(performance.now());}
-  startAnimation(sequence[0],'manual',sequence);
+  startAnimation(sequence[0],'manual',sequence,notation);
  };
  const turn=(move:Move)=>turnSequence([move]);
  useEffect(()=>{
   const onKeyDown=(event:KeyboardEvent)=>{
+   if(panel || replay.reviewing || showHelp)return;
    if(event.code==='Space'&&event.ctrlKey&&!event.altKey&&!event.metaKey&&!showHelp){
     event.preventDefault();
     if(!event.repeat)setMode(current=>current==='view'?'solve':'view');
@@ -195,16 +239,17 @@ export default function App(){
    if(target?.isContentEditable||target?.matches('input,textarea,select'))return;
    const sequence=keyboardMoves(event.code,size);
    if(!sequence)return;
-   event.preventDefault();turnSequence(sequence);
+   event.preventDefault();turnSequence(sequence,CSTIMER_KEYS[event.code]);
   };
   window.addEventListener('keydown',onKeyDown);
   return()=>window.removeEventListener('keydown',onKeyDown);
- },[mode,size,showHelp,running,startedAt]);
+ },[mode,size,showHelp,running,startedAt,panel,replay.reviewing]);
  const scramble=()=>{
   if(busyRef.current)return;
   const sequence=scrambleMoves(size);let next=initialCube(size);for(const move of sequence)next=applyMove(next,size,move);
   cubeRef.current=next;historyRef.current=sequence;manualGroupsRef.current=[];setCubies(next);setHistory(sequence);
   setMoves(0);setStartedAt(null);setRunning(false);setElapsed(0);
+  replay.live(); setFrames([firstFrame(next, true)]);
   setLastScramble(sequence.map(moveLabel).join(' '));setNotice('Scrambled! The clock starts on your first move.');
  };
  const undo=()=>{
@@ -216,48 +261,77 @@ export default function App(){
  const autoSolve=()=>{
   if(busyRef.current||historyRef.current.length===0)return;
   const inverses=historyRef.current.slice().reverse().map(invertMove);
-  busyRef.current=true;setBusy(true);setRunning(false);setStartedAt(null);
+  busyRef.current=true;setBusy(true);setRunning(false);
+  if(startedAt !== null)setElapsed(performance.now() - startedAt);
+  setStartedAt(null);
   setNotice('Rewinding your moves…');
   autoQueueRef.current=inverses.slice(1);
   startAnimation(inverses[0],'auto');
  };
  const handleTurn=(face:Face,shift:boolean,alt:boolean)=>turn({face,layer:Math.min(layer,size-1),turns:alt?2:shift?-1:1});
- return <div className="app">
-  <header className="topbar"><div className="brand"><div className="brand-mark"><span/><span/><span/><span/></div><span>CUBING<span className="brand-dot">.</span></span></div><div className="top-center"><span className="live-dot"/> THE CUBE LAB <span className="edition">/ INTERACTIVE PLAYGROUND</span></div><div className="top-actions"><a className="learning-launch-link" href="#/pro">Pro lab</a><a className="learning-launch-link" href="#/learn"><BookOpen size={16}/> Learning lab</a><button className="help-button" onClick={()=>setShowHelp(true)}><CircleHelp size={16}/> How to play</button></div></header>
-  <main className="workspace">
-   <section className="viewer-column">
-    <div className="viewer-heading"><div className="eyebrow"><span className="eyebrow-line"/> THE PUZZLE</div><h1>Think outside<br/><em>the cube.</em></h1><p>A little twist. A lot of possibilities.</p></div>
-    <div className="cube-stage"><div className="scene-glow"/><div className="stage-tag"><span className="live-dot"/> INTERACTIVE 3D</div>
-     <div className="mode-switch" role="group" aria-label="Cube interaction mode"><button type="button" className={mode==='view'?'active':''} aria-pressed={mode==='view'} onClick={()=>setMode('view')}><RotateCcw size={15}/> Rotate view</button><button type="button" className={mode==='solve'?'active':''} aria-pressed={mode==='solve'} onClick={()=>setMode('solve')}><Grip size={15}/> Solve</button></div>
-     <div className={`stage-cube mode-${mode}`}><CubeScene cubies={cubies} size={size} style={style} scheme={scheme} mode={mode} onDragTurn={turn} animation={animation} onAnimationComplete={completeAnimation}/></div>
-     <div className="stage-bottom"><span><Grip size={16}/>{mode==='view'?'DRAG TO ROTATE VIEW':'DRAG A STICKER TO TURN A SLICE'}</span><span>{mode==='view'?'SCROLL TO ZOOM +':'CAMERA LOCKED · SWITCH TO ROTATE VIEW'}</span></div></div>
-    <div className="status-bar"><div className="status-icon">{solved?<Check size={18}/>:<Sparkles size={18}/>}</div><div><strong>{solved?'All sides aligned':'Puzzle in progress'}</strong><span>{notice}</span></div><span className="status-pill">{solved?'SOLVED':'UNSOLVED'}</span></div>
-   </section>
-   <aside className="sidebar">
-    <div className="sidebar-intro"><div className="eyebrow"><span className="eyebrow-line"/> YOUR WORKSPACE</div><h2>Cube controls<span>.</span></h2><p>Every great solve starts with a single turn.</p></div>
-    <div className="panel"><div className="panel-title"><span className="section-number">01</span><h3>Choose your cube</h3><Layers3 size={17}/></div>
+ const cubePanel = <div className="panel"><div className="panel-title"><span className="section-number">01</span><h3>Choose your cube</h3><Layers3 size={17}/></div>
      <div className="size-options">{Array.from({length:10},(_,i)=>i+2).map(n=><button key={n} disabled={busy} className={size===n?'active':''} onClick={()=>{setSize(n);setLayer(0);reset(n);}}><strong>{n}×{n}</strong></button>)}</div>
      <div className="setting-foot"><span><span className="small-dot"/> {size} × {size} × {size} cube</span><span>{size*size*6} stickers</span></div>
-    </div>
-    <div className="panel"><div className="panel-title"><span className="section-number">02</span><h3>Solve session</h3><TimerReset size={17}/></div>
-     <div className="stats"><div><div className="stat-label"><Clock3 size={13}/> TIME ELAPSED</div><div className="stat-value timer-value">{formatTime(elapsed)}</div></div><div className="stat-divider"/><div><div className="stat-label"><Zap size={13}/> MOVE COUNT</div><div className="stat-value">{String(moves).padStart(3,'0')}</div></div></div>
+    </div>;
+ const sessionPanel = <div className="panel"><div className="panel-title"><span className="section-number">02</span><h3>Solve session</h3><TimerReset size={17}/></div>
+     <div className="stats"><div><div className="stat-label"><Clock3 size={13}/> TIME ELAPSED</div><div className="stat-value timer-value"><SessionClock startedAt={startedAt} elapsed={elapsed} paused={replay.reviewing}/></div></div><div className="stat-divider"/><div><div className="stat-label"><Zap size={13}/> MOVE COUNT</div><div className="stat-value">{String(moves).padStart(3,'0')}</div></div></div>
      <div className="session-buttons"><button className="primary-button" onClick={scramble} disabled={busy}><Shuffle size={17}/> Scramble cube</button><button className="secondary-button" onClick={()=>reset()} disabled={busy}><RotateCcw size={16}/> Reset</button></div>
-     <button className="solve-button" onClick={autoSolve} disabled={busy||history.length===0}><Sparkles size={17}/>{busy?'Solving…':'Auto-solve'}<ArrowRight size={17}/></button><p className="subnote">Auto-solve reverses your recorded turns.</p>
-    </div>
-    <div className="panel"><div className="panel-title"><span className="section-number">03</span><h3>Make a move</h3><RotateCcw size={17}/></div>
-     <div className="move-top"><span>Turn a face</span><button className="undo-button" disabled={busy||history.length===0} onClick={undo}><Undo2 size={15}/> Undo</button></div>
-     <div className="face-grid">{FACES.map(face=><div key={face} className="face-control"><button disabled={busy} title={`Turn ${face} clockwise`} onClick={()=>handleTurn(face,false,false)}>{face}</button><button disabled={busy} className="face-inverse" title={`Reverse ${face}`} onClick={()=>handleTurn(face,true,false)}>′</button></div>)}</div>
-     <div className="layer-control"><label htmlFor="layer">Layer depth <span>{layer===0?'Outer face':`Layer ${layer+1}`}</span></label><input id="layer" type="range" min={0} max={size-1} value={layer} onChange={e=>setLayer(Number(e.target.value))} disabled={busy}/></div>
+     <button className="solve-button" onClick={autoSolve} disabled={replay.reviewing||busy||history.length===0}><Sparkles size={17}/>{busy?'Solving…':'Auto-solve'}<ArrowRight size={17}/></button><p className="subnote">Auto-solve reverses your recorded turns.</p>
+    </div>;
+ const movesPanel = <div className="panel"><div className="panel-title"><span className="section-number">03</span><h3>Make a move</h3><RotateCcw size={17}/></div>
+     <div className="move-top"><span>Turn a face</span><button className="undo-button" disabled={replay.reviewing||busy||history.length===0} onClick={undo}><Undo2 size={15}/> Undo</button></div>
+     <div className="face-grid">{FACES.map(face=><div key={face} className="face-control"><button disabled={busy||replay.reviewing} title={`Turn ${face} clockwise`} onClick={()=>handleTurn(face,false,false)}>{face}</button><button disabled={busy||replay.reviewing} className="face-inverse" title={`Reverse ${face}`} onClick={()=>handleTurn(face,true,false)}>′</button></div>)}</div>
+     <div className="layer-control"><label htmlFor="layer">Layer depth <span>{layer===0?'Outer face':`Layer ${layer+1}`}</span></label><input id="layer" type="range" min={0} max={size-1} value={layer} onChange={e=>setLayer(Number(e.target.value))} disabled={busy||replay.reviewing}/></div>
      <p className="subnote">In Solve mode, drag stickers or use csTimer keys: J=U, F=U′, I=R, K=R′. Ctrl+Space switches modes.</p>
-    </div>
-    <div className="panel"><div className="panel-title"><span className="section-number">04</span><h3>Make it yours</h3><Palette size={17}/></div>
+    </div>;
+ const appearancePanel = <div className="panel"><div className="panel-title"><span className="section-number">04</span><h3>Make it yours</h3><Palette size={17}/></div>
      <div className="appearance-label">APPEARANCE</div><div className="style-options"><button className={style==='filled'?'selected':''} onClick={()=>setStyle('filled')}><Square size={17} fill="currentColor"/> Filled</button><button className={style==='wireframe'?'selected':''} onClick={()=>setStyle('wireframe')}><Grip size={18}/> Wireframe</button></div>
      <div className="appearance-label palette-label">COLOR PALETTE</div><div className="scheme-options">{(Object.keys(SCHEMES) as Scheme[]).map(name=><button key={name} className={scheme===name?'selected':''} onClick={()=>setScheme(name)}><div className="swatches">{FACES.map(face=><span key={face} style={{background:SCHEMES[name][face]}}/>)}</div><span>{name}</span>{scheme===name&&<Check size={14}/>}</button>)}</div>
-    </div>
+    </div>;
+ const historyPanel = <HistoryPanel frames={frames} replay={replay} busy={busy}/>;
+ const sceneAnimation = replay.turns
+  ? { move: replay.turns[0], moves: replay.turns, kind: 'manual' as const, id: -(replay.index + 1) }
+  : animation;
+ const openPanelButton = (key: Panel) => {
+  const Icon = panelButtons[key];
+  return <button key={key} className="icon-button" title={panelNames[key]} aria-label={panelNames[key]}
+    aria-haspopup="dialog" aria-expanded={panel === key} onClick={() => setPanel(key)}><Icon size={20}/></button>;
+ };
+ return <div className={standalone ? 'app compact-app' : 'app'}>
+  <header className="topbar"><div className="brand"><div className="brand-mark"><span/><span/><span/><span/></div><span>CUBING<span className="brand-dot">.</span></span></div>
+   {standalone ? <nav className="app-tools" aria-label="Cube controls">
+    {(['history','cube','session','settings'] as const).map(openPanelButton)}
+   </nav> : <><div className="top-center"><span className="live-dot"/> THE CUBE LAB <span className="edition">/ INTERACTIVE PLAYGROUND</span></div><div className="top-actions"><a className="learning-launch-link app-link" href="./app/" aria-label="Mobile app" title="Mobile app"><Smartphone size={16}/></a><a className="learning-launch-link" href="#/pro">Pro lab</a><a className="learning-launch-link" href="#/learn"><BookOpen size={16}/> Learning lab</a><button className="help-button" onClick={()=>setShowHelp(true)}><CircleHelp size={16}/> How to play</button></div></>}
+  </header>
+  <main className="workspace">
+   <section className="viewer-column" aria-label="Cube simulator">
+    {!standalone && <div className="viewer-heading"><div className="eyebrow"><span className="eyebrow-line"/> THE PUZZLE</div><h1>Think outside<br/><em>the cube.</em></h1><p>A little twist. A lot of possibilities.</p></div>}
+    <div className="cube-stage"><div className="scene-glow"/><div className="stage-tag"><span className="live-dot"/> {standalone ? `${size} × ${size} × ${size}` : 'INTERACTIVE 3D'}</div>
+     <div className="mode-switch" role="group" aria-label="Cube interaction mode"><button type="button" className={mode==='view'?'active':''} aria-pressed={mode==='view'} onClick={()=>setMode('view')}><RotateCcw size={15}/> Rotate view</button><button type="button" className={mode==='solve'?'active':''} aria-pressed={mode==='solve'} onClick={()=>setMode('solve')}><Grip size={15}/> Solve</button></div>
+     <div className={`stage-cube mode-${mode}`}><CubeScene cubies={replay.reviewing ? replay.cube : cubies} size={size} style={style} scheme={scheme} mode={mode} onDragTurn={turn} animation={sceneAnimation} onAnimationComplete={replay.reviewing ? replay.finishTurn : completeAnimation}/></div>
+     {!standalone && <div className="mobile-history">{openPanelButton('history')}</div>}
+     <div className="stage-bottom"><span><Grip size={16}/>{mode==='view'?'DRAG TO ROTATE VIEW':'DRAG A STICKER TO TURN A SLICE'}</span><span>{mode==='view'?'SCROLL TO ZOOM +':'CAMERA LOCKED · SWITCH TO ROTATE VIEW'}</span></div></div>
+    {replay.reviewing && <div className="review-strip"><History size={16}/><span>Frame {replay.index} of {frames.length - 1}</span>
+     {replay.playing && <button onClick={replay.pause}>Pause</button>}<button onClick={replay.live}>Back to live</button></div>}
+    {!standalone && <>{!replay.reviewing && <div className="status-bar"><div className="status-icon">{solved?<Check size={18}/>:<Sparkles size={18}/>}</div><div><strong>{solved?'All sides aligned':'Puzzle in progress'}</strong><span>{notice}</span></div><span className="status-pill">{solved?'SOLVED':'UNSOLVED'}</span></div>}
+     <div className="desktop-history">{historyPanel}</div>
+     </>}
+   </section>
+   {!standalone && <aside className="sidebar">
+    <div className="sidebar-intro"><div className="eyebrow"><span className="eyebrow-line"/> YOUR WORKSPACE</div><h2>Cube controls<span>.</span></h2><p>Every great solve starts with a single turn.</p></div>
+    {cubePanel}{sessionPanel}{movesPanel}{appearancePanel}
     <footer className="side-footer">BUILT FOR CURIOUS MINDS <span>✳</span> KEEP TWISTING</footer>
-   </aside>
+   </aside>}
+
   </main>
-  {showHelp&&<div className="modal-backdrop" onClick={()=>setShowHelp(false)}><div className="help-modal" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setShowHelp(false)}>×</button><div className="eyebrow">THE QUICK GUIDE</div><h2>Let's get twisting.</h2><p>Choose a cube size, scramble it, then solve by dragging a colored sticker or using the face buttons. The clock starts on your first solving move.</p><p>Ctrl+Space toggles Rotate View and Solve modes. In Solve mode use csTimer virtual-cube keys (J=U, F=U′, I=R, K=R′, plus wide and slice moves). Use Rotate view mode to drag/orbit and scroll to zoom without changing the puzzle. Switch to Solve mode to drag a sticker in the direction you want a slice to turn; the camera is locked in this mode. Face buttons remain available in both modes. U (top), D (bottom), L (left), R (right), F (front), B (back). Prime (′) turns counter-clockwise; use layer depth for inner slices.</p><p>Reverse turns are available from the face control buttons. Auto-solve reverses the session history and is not an arbitrary-state solver.</p><div className="keyboard-guide"><strong>csTimer quick reference</strong><span>J U · F U′ · I R · K R′ · H F · G F′</span><span>D L · E L′ · S D · L D′ · W B · O B′</span><span>U Rw · C Uw′ · V Lw · Z Dw · X M′</span><span>Ctrl + Space — Rotate View / Solve</span></div>{lastScramble&&<div className="scramble-readout"><strong>Last scramble</strong><div>{lastScramble}</div></div>}<button className="primary-button" onClick={()=>setShowHelp(false)}>Got it <ArrowRight size={16}/></button></div></div>}
+  {panel && <Drawer title={panelNames[panel]} onClose={() => setPanel(null)} history={panel === 'history'}>
+    {panel === 'history' && historyPanel}
+    {panel === 'cube' && cubePanel}
+    {panel === 'session' && <>{sessionPanel}<p className="drawer-note" role="status">{notice}</p></>}
+    {panel === 'settings' && <>{movesPanel}{appearancePanel}<AppSettings/>
+     <button className="help-button" onClick={() => {setPanel(null); setShowHelp(true);}}><CircleHelp size={16}/> How to play</button></>}
+  </Drawer>}
+  {showHelp&&<Drawer title="How to play" onClose={()=>setShowHelp(false)}><div className="guide-copy"><p>Choose a cube size, scramble it, then solve by dragging a colored sticker or using the face buttons. The clock starts on your first solving move.</p><p>Ctrl+Space toggles Rotate View and Solve modes. In Solve mode use csTimer virtual-cube keys (J=U, F=U′, I=R, K=R′, plus wide and slice moves). Use Rotate view mode to drag/orbit and scroll to zoom without changing the puzzle. Switch to Solve mode to drag a sticker in the direction you want a slice to turn; the camera is locked in this mode. Face buttons remain available in both modes. U (top), D (bottom), L (left), R (right), F (front), B (back). Prime (′) turns counter-clockwise; use layer depth for inner slices.</p><p>Reverse turns are available from the face control buttons. Auto-solve reverses the session history and is not an arbitrary-state solver.</p><div className="keyboard-guide"><strong>csTimer quick reference</strong><span>J U · F U′ · I R · K R′ · H F · G F′</span><span>D L · E L′ · S D · L D′ · W B · O B′</span><span>U Rw · C Uw′ · V Lw · Z Dw · X M′</span><span>Ctrl + Space — Rotate View / Solve</span></div>{lastScramble&&<div className="scramble-readout"><strong>Last scramble</strong><div>{lastScramble}</div></div>}<button className="primary-button" onClick={()=>setShowHelp(false)}>Got it <ArrowRight size={16}/></button></div></Drawer>}
  </div>;
 }
 
